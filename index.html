@@ -1,0 +1,1372 @@
+<!DOCTYPE html>
+<html lang="es-AR">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Semáforo INFLUX Express · Primera lectura empresarial</title>
+<style>
+:root{
+  --bg:#020202;
+  --panel:#0a0909;
+  --panel2:#11100f;
+  --panel3:#171310;
+  --line:rgba(190,128,78,.34);
+  --line2:rgba(255,255,255,.085);
+  --text:#f6f0e8;
+  --muted:#a9a199;
+  --silver:#d9d3ca;
+  --copper:#b87345;
+  --copper2:#d29a6e;
+  --copperDark:#4b2f22;
+  --bronze:#8a6747;
+  --rose:#b98476;
+  --green:#2f7a62;
+  --yellow:#b47a3c;
+  --red:#7f302e;
+  --greenBg:rgba(47,122,98,.17);
+  --yellowBg:rgba(180,122,60,.17);
+  --redBg:rgba(127,48,46,.18);
+  --shadow:0 28px 92px rgba(0,0,0,.64);
+  --font:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;
+  --serif:Georgia,"Times New Roman",serif;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{
+  margin:0;
+  min-height:100vh;
+  font-family:var(--font);
+  color:var(--text);
+  background:
+    radial-gradient(circle at 12% -2%,rgba(184,115,69,.18),transparent 30%),
+    radial-gradient(circle at 90% 4%,rgba(210,154,110,.10),transparent 28%),
+    radial-gradient(circle at 50% 110%,rgba(110,69,45,.12),transparent 30%),
+    linear-gradient(180deg,#020202 0%,#050505 44%,#0a0807 100%);
+  overflow-x:hidden;
+}
+body:before{
+  content:"";
+  position:fixed;inset:0;pointer-events:none;z-index:0;
+  background-image:
+    linear-gradient(rgba(255,255,255,.018) 1px,transparent 1px),
+    linear-gradient(90deg,rgba(255,255,255,.018) 1px,transparent 1px);
+  background-size:54px 54px;
+  mask-image:linear-gradient(to bottom,rgba(0,0,0,.78),transparent 82%);
+}
+body:after{
+  content:"INFLUX";
+  position:fixed;
+  left:50%;top:16%;
+  transform:translateX(-50%);
+  z-index:0;pointer-events:none;
+  font-family:var(--serif);
+  font-size:min(17.5vw,225px);
+  letter-spacing:.12em;
+  color:rgba(255,255,255,.03);
+  white-space:nowrap;
+}
+.app{position:relative;z-index:1;width:min(1180px,calc(100% - 28px));margin:0 auto;padding:24px 0 60px}
+.topbar{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:22px}
+.brand{display:flex;align-items:center;gap:14px}
+.mark{
+  width:46px;height:46px;border-radius:50%;
+  border:1px solid rgba(210,154,110,.42);
+  display:grid;place-items:center;
+  color:var(--copper2);
+  background:radial-gradient(circle at 35% 25%,rgba(210,154,110,.18),rgba(5,5,5,.96) 70%);
+  box-shadow:0 0 0 6px rgba(184,115,69,.04), inset 0 1px 0 rgba(255,255,255,.08);
+  font-weight:850;
+}
+.brand h1{margin:0;font-family:var(--serif);font-weight:500;font-size:1.05rem;letter-spacing:.18em}
+.brand p{margin:2px 0 0;color:var(--muted);font-size:.75rem;letter-spacing:.1em;text-transform:uppercase}
+.actions,.hero-actions,.result-actions,.screen-actions{display:flex;gap:10px;flex-wrap:wrap;justify-content:flex-end}
+button,input,select,textarea{font:inherit}
+.btn{
+  border:1px solid rgba(210,154,110,.34);
+  background:linear-gradient(135deg,rgba(75,47,34,.42),rgba(10,10,10,.78));
+  color:var(--text);
+  padding:12px 16px;
+  border-radius:999px;
+  cursor:pointer;
+  transition:.22s ease;
+  display:inline-flex;align-items:center;justify-content:center;gap:8px;
+  text-decoration:none;
+  font-weight:760;
+  box-shadow:0 14px 34px rgba(0,0,0,.30);
+  min-height:44px;
+}
+.btn:hover{transform:translateY(-1px);border-color:rgba(210,154,110,.68);box-shadow:0 18px 38px rgba(0,0,0,.38)}
+.btn.primary{
+  background:linear-gradient(135deg,#e0c2a4 0%,#b87345 36%,#653c29 78%,#2f1d18 100%);
+  border-color:rgba(236,204,170,.35);
+  color:#050404;
+  font-weight:920;
+}
+.btn.secondary{background:rgba(255,255,255,.035);color:var(--silver);border-color:var(--line2);box-shadow:none}
+.btn.ghost{background:transparent;color:var(--muted);border-color:rgba(255,255,255,.08);box-shadow:none}
+.btn.danger{background:rgba(127,48,46,.16);border-color:rgba(127,48,46,.50)}
+.btn.small{min-height:38px;padding:9px 13px;font-size:.85rem}
+.status-pill{display:inline-flex;align-items:center;gap:7px;border:1px solid var(--line2);border-radius:999px;padding:8px 11px;color:var(--muted);font-size:.78rem;text-transform:uppercase;letter-spacing:.08em}
+.status-pill:before{content:"";width:8px;height:8px;border-radius:50%;background:var(--green);box-shadow:0 0 14px rgba(47,122,98,.65)}
+.status-pill.offline:before{background:var(--yellow);box-shadow:0 0 14px rgba(180,122,60,.65)}
+.screen{display:none;animation:fade .25s ease both}
+.screen.active{display:block}
+@keyframes fade{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+.card,.hero-card,.side-card,.panel,.result-card,.journey-card{
+  border:1px solid var(--line);
+  border-radius:30px;
+  background:linear-gradient(165deg,rgba(13,12,11,.97),rgba(4,4,4,.99));
+  box-shadow:var(--shadow);
+  overflow:hidden;
+  position:relative;
+}
+.card:before,.hero-card:before,.journey-card:before,.result-card:before{
+  content:"";
+  position:absolute;inset:0;pointer-events:none;
+  background:linear-gradient(135deg,rgba(184,115,69,.10),transparent 30%,rgba(255,255,255,.035) 76%,transparent);
+}
+.card>* ,.hero-card>* ,.journey-card>* ,.result-card>*{position:relative;z-index:1}
+.hero{min-height:70vh;display:grid;grid-template-columns:1.08fr .92fr;gap:28px;align-items:center}
+.hero-card{padding:clamp(30px,4.7vw,56px)}
+.eyebrow{color:var(--copper2);letter-spacing:.22em;text-transform:uppercase;font-size:.76rem;font-weight:860;margin:0 0 16px}
+.hero-title{margin:0;line-height:.9;letter-spacing:-.055em}
+.hero-title span{display:block;font-size:clamp(2.55rem,5.8vw,6.2rem);font-weight:790;color:#f2eee8}
+.hero-title strong{
+  display:block;
+  font-family:var(--serif);
+  font-size:clamp(2.9rem,6.8vw,7.15rem);
+  font-weight:500;
+  letter-spacing:.075em;
+  background:linear-gradient(112deg,#fff7ee 0%,#ded7ce 18%,#d59a6b 44%,#8b5338 67%,#f0e6da 100%);
+  -webkit-background-clip:text;background-clip:text;color:transparent;
+  filter:drop-shadow(0 10px 34px rgba(184,115,69,.13));
+}
+.brand-line{margin:14px 0 0;color:#c9b4a1;font-size:.86rem;letter-spacing:.12em;text-transform:uppercase}
+.lead{margin:22px 0 0;color:var(--silver);font-size:1.09rem;line-height:1.68;max-width:720px}
+.quote{margin-top:22px;padding:18px 20px;border-left:3px solid var(--copper2);background:rgba(255,255,255,.035);border-radius:16px;color:#efe7dc;font-weight:760;line-height:1.55}
+.hero-actions{justify-content:flex-start;margin-top:26px}
+.hero-actions .btn.secondary{opacity:.72}
+.hero-meta{display:flex;flex-wrap:wrap;gap:10px;margin-top:20px}
+.meta-chip{display:inline-flex;align-items:center;gap:8px;padding:8px 12px;border-radius:999px;border:1px solid rgba(210,154,110,.28);background:linear-gradient(135deg,rgba(24,22,20,.96),rgba(9,9,9,.96));color:#d1c7bc;font-size:.76rem;letter-spacing:.10em;text-transform:uppercase}
+.privacy-note{margin-top:18px;color:var(--muted);font-size:.86rem;line-height:1.52;border-top:1px solid rgba(255,255,255,.08);padding-top:14px}
+.side-card{background:linear-gradient(180deg,rgba(10,10,10,.96),rgba(4,4,4,.98));border-color:rgba(210,154,110,.22)}
+.side-head{padding:22px;border-bottom:1px solid var(--line2);display:flex;align-items:center;justify-content:space-between;gap:16px}
+.status-dot{width:12px;height:12px;border-radius:50%;background:var(--copper2);box-shadow:0 0 24px rgba(210,154,110,.58)}
+.hero-semaforo-wrap{padding:28px;display:grid;grid-template-columns:105px 1fr;gap:24px;align-items:center;border-bottom:1px solid var(--line2)}
+.traffic-light{
+  width:84px;padding:13px 15px;border-radius:28px;
+  background:linear-gradient(180deg,#0f0f0f,#030303);
+  border:1px solid rgba(210,154,110,.24);
+  display:grid;gap:9px;justify-items:center;
+  box-shadow:inset 0 0 18px rgba(0,0,0,.62),0 18px 42px rgba(0,0,0,.48);
+}
+.light{width:32px;height:32px;border-radius:50%;background:#151312;border:1px solid rgba(210,154,110,.16);box-shadow:inset 0 0 12px rgba(0,0,0,.62)}
+.light.red.active{background:radial-gradient(circle at 35% 35%,#b8675f,#521b19 72%);box-shadow:0 0 18px rgba(127,48,46,.42),inset 0 0 10px rgba(255,255,255,.14)}
+.light.yellow.active{background:radial-gradient(circle at 35% 35%,#c99556,#5f3d1f 72%);box-shadow:0 0 18px rgba(180,122,60,.38),inset 0 0 10px rgba(255,255,255,.14)}
+.light.green.active{background:radial-gradient(circle at 35% 35%,#5da489,#123f36 70%);box-shadow:0 0 18px rgba(47,122,98,.40),inset 0 0 10px rgba(255,255,255,.14)}
+.visual-title{font-size:clamp(1.35rem,2.2vw,2rem);line-height:1.1;letter-spacing:-.035em;margin:6px 0 10px}
+.micro{margin:10px 0 0;color:var(--muted);line-height:1.58}
+.signal-list{padding:20px;display:grid;gap:10px}
+.signal{padding:16px;border:1px solid var(--line2);border-radius:18px;background:linear-gradient(180deg,rgba(18,18,18,.92),rgba(7,7,7,.92))}
+.signal span{display:block;color:var(--muted);font-size:.76rem;text-transform:uppercase;letter-spacing:.12em;margin-bottom:7px}
+.signal b{display:block;font-size:1rem;line-height:1.35}
+.form-head{padding:28px;border-bottom:1px solid var(--line2)}
+.form-head h3{margin:0;font-size:clamp(1.4rem,3vw,2.2rem);letter-spacing:-.03em}
+.form-body{padding:28px;display:grid;gap:20px}
+.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
+.field{display:grid;gap:8px}
+.field label{color:#e8dfd2;font-size:.93rem;font-weight:690}
+.field input,.field select,.field textarea{width:100%;border:1px solid rgba(255,255,255,.1);background:rgba(0,0,0,.28);color:var(--text);border-radius:16px;padding:13px 14px;outline:none;transition:.2s ease}
+.field textarea{min-height:112px;resize:vertical;line-height:1.5}
+.field input:focus,.field select:focus,.field textarea:focus{border-color:rgba(210,154,110,.72);box-shadow:0 0 0 4px rgba(184,115,69,.09)}
+select option{background:#111;color:#f5efe8}
+.consent{border:1px solid rgba(210,154,110,.26);border-radius:18px;background:rgba(184,115,69,.07);padding:14px;display:flex;gap:10px;align-items:flex-start;color:var(--silver);line-height:1.45}
+.consent input{margin-top:4px;accent-color:var(--copper2)}
+.nav-actions{padding:22px 28px;display:flex;justify-content:space-between;gap:12px;border-top:1px solid var(--line2);background:rgba(0,0,0,.14)}
+.journey-shell{display:grid;grid-template-columns:300px 1fr;gap:22px;align-items:start}
+.journey-sidebar{position:sticky;top:18px;border:1px solid var(--line);border-radius:26px;background:linear-gradient(180deg,rgba(10,10,10,.96),rgba(4,4,4,.98));box-shadow:var(--shadow);overflow:hidden}
+.progress-wrap{padding:22px;border-bottom:1px solid var(--line2)}
+.step-kicker{color:var(--copper2);text-transform:uppercase;letter-spacing:.13em;font-size:.75rem;font-weight:820;margin-bottom:8px}
+.progress-title{margin:0;font-size:1.16rem;line-height:1.35}
+.bar{height:9px;border-radius:99px;background:rgba(255,255,255,.07);overflow:hidden;margin-top:18px;border:1px solid rgba(255,255,255,.04)}
+.bar>div{height:100%;width:0%;background:linear-gradient(90deg,var(--copperDark),var(--copper2));transition:.28s ease;border-radius:99px}
+.stage-list{padding:14px;display:grid;gap:8px}
+.stage-item{display:flex;gap:10px;align-items:flex-start;color:var(--muted);padding:12px;border-radius:16px;border:1px solid transparent;transition:.2s ease}
+.stage-item.active{color:var(--text);background:rgba(184,115,69,.10);border-color:rgba(210,154,110,.24)}
+.stage-item.done{color:#d7c5b5;border-color:rgba(210,154,110,.13)}
+.stage-num{width:24px;height:24px;border-radius:50%;display:grid;place-items:center;border:1px solid rgba(210,154,110,.34);font-size:.76rem;color:var(--copper2);flex:none}
+.journey-card{min-height:530px;display:grid}
+.stage-intro,.stage-complete,.question-screen,.reveal-screen{padding:clamp(28px,4.5vw,54px);display:flex;flex-direction:column;justify-content:center}
+.stage-title{font-size:clamp(2rem,4.9vw,4.9rem);line-height:.95;letter-spacing:-.06em;margin:0}
+.stage-title strong{display:block;font-family:var(--serif);font-weight:500;letter-spacing:.02em;background:linear-gradient(112deg,#fff7ee 0%,#d59a6b 48%,#efe7dc 100%);-webkit-background-clip:text;background-clip:text;color:transparent}
+.stage-desc{font-size:1.08rem;line-height:1.66;color:var(--silver);max-width:720px;margin:22px 0}
+.stage-pill-row{display:flex;gap:10px;flex-wrap:wrap;margin:0 0 24px}
+.question-meta{display:flex;justify-content:space-between;gap:14px;align-items:center;margin-bottom:22px;flex-wrap:wrap}
+.question-title{font-size:clamp(1.75rem,4vw,3.6rem);line-height:1.05;letter-spacing:-.045em;margin:0 0 28px;max-width:930px}
+.answer-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
+.answer-btn{
+  min-height:130px;
+  border:1px solid rgba(255,255,255,.10);
+  background:linear-gradient(180deg,rgba(255,255,255,.045),rgba(0,0,0,.22));
+  color:var(--silver);
+  border-radius:24px;
+  cursor:pointer;
+  padding:18px;
+  text-align:left;
+  transition:.22s ease;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.035);
+}
+.answer-btn span{display:block;color:var(--muted);font-size:.74rem;text-transform:uppercase;letter-spacing:.12em;margin-bottom:10px}
+.answer-btn strong{display:block;font-size:1.24rem;line-height:1.2;color:#eee7de}
+.answer-btn:hover{transform:translateY(-2px);border-color:rgba(210,154,110,.42);background:linear-gradient(180deg,rgba(184,115,69,.08),rgba(0,0,0,.22))}
+.answer-btn.selected{border-color:rgba(210,154,110,.78);background:linear-gradient(140deg,rgba(184,115,69,.22),rgba(15,14,13,.96));box-shadow:0 0 0 4px rgba(184,115,69,.08), inset 0 1px 0 rgba(255,255,255,.06)}
+.question-actions{display:flex;justify-content:space-between;gap:12px;margin-top:28px}
+.mode-row{display:flex;align-items:center;justify-content:space-between;gap:14px;margin-bottom:18px;flex-wrap:wrap}
+.mode-switch{display:inline-flex;border:1px solid var(--line2);border-radius:999px;background:rgba(0,0,0,.25);overflow:hidden}
+.mode-switch button{border:0;background:transparent;color:var(--muted);padding:10px 14px;cursor:pointer;font-weight:820}
+.mode-switch button.active{background:linear-gradient(135deg,#e0c2a4,#b87345,#653c29);color:#060505}
+.result-layout{display:grid;grid-template-columns:.88fr 1.12fr;gap:22px;align-items:start}
+.result-card{border-radius:30px}
+.result-hero{padding:30px;position:relative;overflow:hidden}
+.badge{display:inline-flex;align-items:center;gap:8px;padding:8px 12px;border-radius:999px;border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.04);color:var(--silver);font-size:.82rem;font-weight:820;letter-spacing:.04em;text-transform:uppercase}
+.badge.green{border-color:rgba(47,122,98,.42);background:var(--greenBg);color:#b6dfcf}
+.badge.yellow{border-color:rgba(180,122,60,.46);background:var(--yellowBg);color:#edd0a6}
+.badge.red{border-color:rgba(127,48,46,.52);background:var(--redBg);color:#e5ada9}
+.score{display:flex;align-items:flex-end;gap:12px;margin:18px 0}
+.score strong{font-size:clamp(3.4rem,8vw,6rem);letter-spacing:-.08em;line-height:.84}
+.score span{color:var(--muted);padding-bottom:9px;font-weight:720}
+.result-visuals{padding:0 24px 24px;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
+.visual-card,.radar-card{border:1px solid rgba(255,255,255,.08);border-radius:22px;background:linear-gradient(180deg,rgba(20,18,16,.96),rgba(10,10,10,.96));padding:18px;box-shadow:inset 0 1px 0 rgba(255,255,255,.03)}
+.visual-card h4,.radar-card h4{margin:0 0 12px;font-size:1rem}
+.small-note{margin:10px 0 0;color:var(--muted);font-size:.84rem;line-height:1.45}
+.donut-chart{width:168px;height:168px;border-radius:50%;display:grid;place-items:center;background:conic-gradient(#b87345 0deg,#1a1716 0deg);margin:auto;position:relative;box-shadow:0 18px 44px rgba(0,0,0,.42)}
+.donut-chart:before{content:"";position:absolute;inset:14px;border-radius:50%;background:linear-gradient(180deg,#0f0f10,#060606);border:1px solid rgba(255,255,255,.05)}
+.donut-inner{position:relative;z-index:1;display:grid;place-items:center;text-align:center}.donut-inner strong{font-size:2rem;letter-spacing:-.06em}.donut-inner span{font-size:.76rem;color:var(--muted);text-transform:uppercase;letter-spacing:.08em}
+.radar-wrap{min-height:300px;display:grid;place-items:center}.radar-wrap svg{width:100%;max-width:350px;height:auto}.radar-grid{fill:none;stroke:rgba(255,255,255,.1);stroke-width:1}.radar-axis{stroke:rgba(255,255,255,.12);stroke-width:1}.radar-shape{fill:rgba(184,115,69,.20);stroke:#d29a6e;stroke-width:2}.radar-point{fill:#e2b28c;stroke:#fff2;stroke-width:1}.radar-label{fill:#ded6cf;font-size:11px;letter-spacing:.02em}
+.areas{padding:24px;display:grid;gap:12px}.area-row{border:1px solid var(--line2);border-radius:18px;background:linear-gradient(180deg,rgba(17,16,16,.96),rgba(10,10,10,.96));padding:15px;display:grid;gap:10px}.area-top{display:flex;justify-content:space-between;gap:12px;align-items:center}.area-name{font-weight:780}.meter{height:8px;border-radius:999px;background:rgba(255,255,255,.07);overflow:hidden}.meter span{display:block;height:100%;border-radius:999px}.meter .green{background:linear-gradient(90deg,#174f43,#5da489)}.meter .yellow{background:linear-gradient(90deg,#5f3d1f,#c99556)}.meter .red{background:linear-gradient(90deg,#521b19,#a95650)}
+.insight{padding:24px;border-top:1px solid var(--line2);display:grid;gap:16px}
+.insight h4{margin:0;font-size:1.08rem}.insight p{margin:0;color:var(--silver);line-height:1.66}
+.reading-block{border-left:3px solid var(--copper2);padding:18px 18px 18px 20px;background:linear-gradient(135deg,rgba(184,115,69,.08),rgba(255,255,255,.025));border-radius:18px}
+.internal-only{display:none}.internal-mode .internal-only{display:block}.internal-mode .internal-only.inline{display:inline-flex}.meeting-mode .internal-only{display:none!important}
+.internal-followup{border:1px solid rgba(210,154,110,.22);border-radius:22px;background:linear-gradient(180deg,rgba(255,255,255,.035),rgba(0,0,0,.18));padding:18px;margin-top:6px}
+.commercial-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+.commercial-card{border:1px solid rgba(210,154,110,.20);border-radius:18px;background:rgba(0,0,0,.22);padding:14px}.commercial-card span{display:block;color:var(--muted);font-size:.72rem;text-transform:uppercase;letter-spacing:.08em}.commercial-card strong{display:block;color:#fff2e5;margin-top:6px;font-size:1.1rem}
+.result-actions{display:flex;flex-wrap:wrap;gap:10px;padding:24px;border-top:1px solid var(--line2);background:rgba(0,0,0,.14)}
+.panel-head{padding:24px;border-bottom:1px solid var(--line2);display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap}
+.panel-head h3{margin:0}.panel-metrics{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;padding:18px;border-bottom:1px solid var(--line2)}.metric-card{border:1px solid rgba(255,255,255,.08);border-radius:18px;background:rgba(0,0,0,.22);padding:14px}.metric-card span{display:block;color:var(--muted);font-size:.76rem;text-transform:uppercase;letter-spacing:.09em}.metric-card strong{display:block;margin-top:6px;font-size:1.55rem}
+.table-wrap{overflow:auto;max-height:540px}table{width:100%;border-collapse:collapse;min-width:1500px}th,td{padding:13px 14px;border-bottom:1px solid rgba(255,255,255,.07);text-align:left;vertical-align:top;font-size:.88rem}th{position:sticky;top:0;background:#12100e;color:var(--copper2);text-transform:uppercase;letter-spacing:.08em;font-size:.72rem;z-index:2}td{color:var(--silver)}
+.empty{padding:30px;text-align:center;color:var(--muted)}
+.toast{position:fixed;right:18px;top:18px;padding:14px 16px;border-radius:16px;background:#15120f;border:1px solid rgba(210,154,110,.36);color:var(--text);box-shadow:var(--shadow);transform:translateY(18px);opacity:0;pointer-events:none;transition:.25s ease;z-index:50;max-width:min(380px,calc(100% - 36px))}.toast.show{transform:translateY(0);opacity:1}
+.footer-note{color:var(--muted);text-align:center;margin:26px auto 0;font-size:.86rem;line-height:1.55;max-width:780px}
+#printReport{display:none}
+.print-report{background:#050505;color:#f5efe8;border:1px solid rgba(210,154,110,.30);border-radius:28px;padding:28px}
+.print-cover{border:1px solid rgba(210,154,110,.34);border-radius:24px;padding:28px;background:linear-gradient(165deg,rgba(18,15,14,.98),rgba(3,3,3,.99));margin-bottom:16px;min-height:240px;display:flex;flex-direction:column;justify-content:center}
+.print-brand{font-family:var(--serif);letter-spacing:.16em;font-size:clamp(2.3rem,5vw,4.8rem);line-height:.9;margin:0;background:linear-gradient(105deg,#fff2e5 0%,#d8c2a6 32%,#d29a6e 56%,#eee8de 100%);-webkit-background-clip:text;background-clip:text;color:transparent}
+.print-title{margin:16px 0 0;font-size:clamp(1.35rem,2.8vw,2.4rem);color:#fff2e5}.print-subtitle{color:#ddd7d2;line-height:1.55;margin:10px 0 0}.print-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;margin:16px 0}.print-kpi,.print-section{border:1px solid rgba(255,255,255,.10);border-radius:20px;background:linear-gradient(180deg,#12100f,#050505);padding:16px}.print-kpi span{display:block;color:#a79f98;text-transform:uppercase;letter-spacing:.08em;font-size:.72rem}.print-kpi strong{display:block;margin-top:6px;color:#fff2e5;font-size:1.25rem;line-height:1.2}.print-section h4{margin:0 0 8px;color:#fff2e5}.print-section p,.print-section li{color:#ddd7d2;line-height:1.55}.print-section ul{margin:0;padding-left:18px}.print-signature{border-top:1px solid rgba(210,154,110,.24);margin-top:18px;padding-top:14px;color:#d8c2a6;font-family:var(--serif);letter-spacing:.08em}
+
+.print-chart-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin:16px 0}
+.print-traffic{display:flex;align-items:center;gap:14px}
+.print-light-stack{width:62px;padding:9px 11px;border-radius:22px;background:#080808;border:1px solid rgba(210,154,110,.28);display:grid;gap:7px;justify-items:center}
+.print-light{width:24px;height:24px;border-radius:50%;background:#171312;border:1px solid rgba(255,255,255,.10)}
+.print-light.red.on{background:radial-gradient(circle at 35% 35%,#b8675f,#521b19 72%)}
+.print-light.yellow.on{background:radial-gradient(circle at 35% 35%,#c99556,#5f3d1f 72%)}
+.print-light.green.on{background:radial-gradient(circle at 35% 35%,#5da489,#123f36 70%)}
+.print-big-score{font-size:2.6rem;letter-spacing:-.06em;color:#fff2e5;font-weight:850;line-height:.95}
+.print-bars{display:grid;gap:10px}
+.print-bar-row{display:grid;gap:6px}
+.print-bar-top{display:flex;justify-content:space-between;gap:12px;color:#ddd7d2;font-size:.9rem}
+.print-bar-track{height:9px;border-radius:999px;background:rgba(255,255,255,.08);overflow:hidden;border:1px solid rgba(255,255,255,.04)}
+.print-bar-fill{height:100%;border-radius:999px;background:linear-gradient(90deg,#4b2f22,#d29a6e)}
+.print-seal{margin-top:12px;padding:12px 14px;border-left:3px solid rgba(210,154,110,.75);background:rgba(184,115,69,.08);border-radius:14px;color:#ddd7d2;line-height:1.5}
+
+@media(max-width:960px){.hero,.journey-shell,.result-layout{grid-template-columns:1fr}.result-visuals,.commercial-grid,.panel-metrics{grid-template-columns:1fr}.hero{min-height:auto;padding-top:16px}.hero-card{padding:30px 22px}.journey-sidebar{position:relative;top:auto}.stage-list{grid-template-columns:repeat(2,minmax(0,1fr));display:grid}.answer-grid{grid-template-columns:1fr}.grid{grid-template-columns:1fr}.topbar{align-items:flex-start;flex-direction:column}.actions{justify-content:flex-start}.nav-actions,.question-actions{flex-direction:column-reverse}.nav-actions .btn,.result-actions .btn,.question-actions .btn{width:100%}.hero-semaforo-wrap{grid-template-columns:1fr;text-align:center}.traffic-light{margin:auto}}
+@media(max-width:560px){.app{width:min(100% - 20px,1180px);padding-top:16px}.donut-chart{width:144px;height:144px}.brand h1{font-size:.95rem}.brand p{font-size:.7rem}.mark{width:40px;height:40px}.hero-card,.form-head,.form-body,.result-hero,.stage-intro,.stage-complete,.question-screen,.reveal-screen{padding:22px}.stage-list{grid-template-columns:1fr}.areas,.insight,.result-actions{padding:18px}.btn{width:100%}.answer-btn{min-height:92px}.stage-title{font-size:2.25rem}.question-title{font-size:1.8rem}}
+@media print{
+  @page{size:A4;margin:10mm}
+  html,body{-webkit-print-color-adjust:exact;print-color-adjust:exact;background:#050505!important;color:#f3ede6!important}
+  body:before,body:after,.topbar,main>.screen,.footer-note,.toast{display:none!important}
+  .app{width:100%!important;padding:0!important;margin:0!important}
+  #printReport{display:block!important;box-shadow:none!important;border:0!important;padding:0!important;width:190mm!important;max-width:190mm!important;margin:0 auto!important}
+  .print-report{display:block!important;border:0!important;border-radius:0!important;padding:0!important;background:#050505!important}
+  .print-chart-grid{grid-template-columns:1fr 1fr!important;gap:10px!important}
+  .print-section,.print-kpi,.print-cover,.print-chart-grid{break-inside:avoid!important;page-break-inside:avoid!important}
+  .print-grid{grid-template-columns:1fr 1fr!important;gap:10px!important}
+  .print-section,.print-kpi{padding:12px!important}
+  .print-title{font-size:1.55rem!important}
+  .print-brand{font-size:3.2rem!important}
+  .print-brand{background:none!important;color:#f5efe8!important;-webkit-text-fill-color:#f5efe8!important}
+  .print-cover,.print-kpi,.print-section{break-inside:avoid;page-break-inside:avoid;background:#0b0b0b!important;box-shadow:none!important}
+}
+
+/* AJUSTE MOBILE INFLUX · seguridad visual */
+html, body{
+  max-width:100%;
+  overflow-x:hidden;
+}
+img, svg, canvas{
+  max-width:100%;
+}
+@media(max-width:720px){
+  .app{
+    width:min(100% - 16px,1180px);
+    padding-top:14px;
+    padding-bottom:40px;
+  }
+  .topbar{
+    gap:12px;
+  }
+  .topbar .actions{
+    width:100%;
+  }
+  .topbar .actions .btn{
+    width:100%;
+  }
+  .hero-title span{
+    font-size:clamp(2.05rem,12vw,3rem);
+    line-height:.96;
+  }
+  .hero-title strong{
+    font-size:clamp(2.25rem,13.5vw,3.35rem);
+    letter-spacing:.045em;
+    line-height:.94;
+  }
+  .lead{
+    font-size:.98rem;
+    line-height:1.56;
+  }
+  .quote{
+    font-size:.94rem;
+    padding:15px 16px;
+  }
+  .card,.hero-card,.side-card,.panel,.result-card,.journey-card{
+    border-radius:22px;
+  }
+  .form-head,.form-body,.result-hero,.stage-intro,.stage-complete,.question-screen,.reveal-screen{
+    padding:20px;
+  }
+  .field input,.field select,.field textarea{
+    font-size:16px;
+  }
+  .meta-chip{
+    font-size:.68rem;
+    padding:7px 9px;
+    letter-spacing:.055em;
+  }
+  .question-meta .meta-chip{
+    width:100%;
+    justify-content:center;
+    text-align:center;
+  }
+  .stage-title{
+    font-size:clamp(1.9rem,11vw,2.45rem);
+    line-height:1;
+  }
+  .stage-desc{
+    font-size:.98rem;
+    line-height:1.55;
+  }
+  .question-title{
+    font-size:clamp(1.45rem,8vw,2rem);
+    line-height:1.12;
+  }
+  .answer-btn{
+    min-height:88px;
+    padding:16px;
+    border-radius:20px;
+  }
+  .answer-btn strong{
+    font-size:1.05rem;
+  }
+  .score strong{
+    font-size:clamp(3rem,18vw,4rem);
+  }
+  .result-visuals{
+    grid-template-columns:1fr;
+    padding:0 18px 18px;
+  }
+  .radar-card{
+    margin:0 18px 18px!important;
+  }
+  .radar-label{
+    font-size:9px;
+  }
+  .areas,.insight,.result-actions{
+    padding:18px;
+  }
+  .hero-actions,.result-actions,.screen-actions,.question-actions{
+    width:100%;
+  }
+  .hero-actions .btn,.result-actions .btn,.result-actions a.btn,.screen-actions .btn,.question-actions .btn{
+    width:100%;
+  }
+  .mode-row{
+    align-items:flex-start;
+  }
+}
+@media(max-width:390px){
+  .brand h1{
+    font-size:.86rem;
+    letter-spacing:.14em;
+  }
+  .brand p{
+    font-size:.63rem;
+    letter-spacing:.07em;
+  }
+  .mark{
+    width:38px;
+    height:38px;
+  }
+  .hero-title span{
+    font-size:2rem;
+  }
+  .hero-title strong{
+    font-size:2.2rem;
+  }
+  .visual-title{
+    font-size:1.25rem;
+  }
+  .donut-chart{
+    width:132px;
+    height:132px;
+  }
+}
+
+
+/* INFLUX · UX Mobile Público QR · versión limpia */
+body:after{opacity:.55;}
+@media(max-width:760px){
+  body:after{display:none;}
+  .app{width:min(100% - 14px,1180px);padding-top:12px;}
+  .topbar{margin-bottom:12px;padding:0 2px;}
+  .brand{gap:10px;}
+  .brand h1{font-size:.9rem;letter-spacing:.14em;}
+  .brand p{font-size:.62rem;letter-spacing:.06em;}
+  .mark{width:36px;height:36px;font-size:.9rem;}
+  .status-pill{display:none;}
+
+  .hero{display:block;min-height:auto;padding-top:4px;}
+  .hero-card{padding:22px 18px;border-radius:22px;}
+  .side-card{display:none;}
+  .eyebrow{font-size:.68rem;letter-spacing:.14em;margin-bottom:10px;}
+  .hero-title{letter-spacing:-.035em;}
+  .hero-title span{font-size:clamp(1.85rem,12vw,2.55rem);line-height:.98;}
+  .hero-title strong{font-size:clamp(2.05rem,13vw,2.9rem);line-height:.92;letter-spacing:.04em;word-break:normal;}
+  .brand-line{font-size:.68rem;line-height:1.35;letter-spacing:.075em;}
+  .lead{font-size:.94rem;line-height:1.5;margin-top:16px;}
+  .quote{margin-top:16px;padding:14px 15px;font-size:.9rem;line-height:1.45;border-radius:14px;}
+  .hero-meta{gap:7px;}
+  .meta-chip{font-size:.65rem;letter-spacing:.04em;padding:7px 9px;}
+  .privacy-note{font-size:.78rem;}
+
+  .form-head,.form-body{padding:18px;}
+  .form-head h3{font-size:1.5rem;}
+  .field label{font-size:.86rem;}
+  .field input,.field select,.field textarea{min-height:48px;font-size:16px;border-radius:14px;}
+  .consent{font-size:.82rem;line-height:1.4;}
+
+  .journey-shell{display:block;}
+  .journey-sidebar{position:relative;top:auto;margin-bottom:12px;border-radius:20px;}
+  .progress-wrap{padding:14px 16px;}
+  .progress-title{font-size:.98rem;}
+  .stage-list{display:none;}
+  .journey-card{min-height:auto;border-radius:22px;}
+  .stage-intro,.stage-complete,.question-screen,.reveal-screen{padding:22px 18px;min-height:auto;}
+  .stage-title{font-size:clamp(1.7rem,10vw,2.25rem);line-height:1.03;letter-spacing:-.04em;}
+  .stage-title strong{letter-spacing:0;}
+  .stage-desc{font-size:.94rem;line-height:1.5;margin:16px 0;}
+  .question-meta{gap:8px;margin-bottom:16px;}
+  .question-meta .meta-chip{width:100%;justify-content:center;text-align:center;}
+  .question-title{font-size:clamp(1.35rem,7.5vw,1.85rem);line-height:1.13;letter-spacing:-.025em;margin-bottom:18px;}
+  .answer-grid{display:grid;grid-template-columns:1fr;gap:10px;}
+  .answer-btn{min-height:78px;padding:14px 15px;border-radius:18px;}
+  .answer-btn span{font-size:.64rem;margin-bottom:6px;}
+  .answer-btn strong{font-size:1rem;line-height:1.18;}
+  .question-actions,.screen-actions,.nav-actions{gap:9px;margin-top:18px;}
+
+  .mode-row h2{font-size:1.7rem!important;line-height:1.05;}
+  .result-layout{display:block;}
+  .result-card{border-radius:22px;margin-bottom:14px;}
+  .result-hero{padding:20px 18px;}
+  .score{margin:12px 0;}
+  .score strong{font-size:clamp(2.8rem,17vw,3.7rem);}
+  .result-visuals{grid-template-columns:1fr;padding:0 16px 16px;gap:10px;}
+  .visual-card{padding:14px;border-radius:18px;}
+  .radar-card{display:none;}
+  .areas{padding:16px;gap:9px;}
+  .area-row{padding:12px;border-radius:15px;}
+  .area-name{font-size:.9rem;}
+  .badge{font-size:.7rem;padding:6px 9px;}
+  .insight{padding:18px;gap:14px;}
+  .insight h4{font-size:.98rem;}
+  .insight p{font-size:.92rem;line-height:1.5;}
+  .reading-block{padding:15px;border-radius:16px;}
+  .result-actions{padding:16px;gap:9px;}
+  .btn,.result-actions .btn,.result-actions a.btn,.hero-actions .btn,.screen-actions .btn,.question-actions .btn,.nav-actions .btn{
+    width:100%;min-height:48px;padding:12px 14px;font-size:.92rem;
+  }
+}
+@media(max-width:380px){
+  .hero-card,.form-head,.form-body,.stage-intro,.stage-complete,.question-screen,.reveal-screen,.result-hero,.insight{
+    padding-left:15px;padding-right:15px;
+  }
+  .hero-title span{font-size:1.75rem;}
+  .hero-title strong{font-size:1.95rem;}
+  .question-title{font-size:1.28rem;}
+  .answer-btn{min-height:72px;}
+}
+
+
+/* INFLUX · Corrección final legibilidad desktop/mobile */
+html, body{
+  max-width:100%;
+  overflow-x:hidden;
+}
+*{
+  overflow-wrap:break-word;
+  word-break:normal;
+}
+img, svg, canvas{
+  max-width:100%;
+}
+body:after{
+  opacity:.45;
+  max-width:100vw;
+  overflow:hidden;
+}
+.hero-title,
+.stage-title,
+.question-title,
+.visual-title,
+.mode-row h2,
+.form-head h3,
+.result-hero h2{
+  overflow-wrap:normal;
+  word-break:normal;
+  hyphens:none;
+}
+.hero-title strong,
+.hero-title span,
+.stage-title strong{
+  white-space:normal;
+}
+.brand h1,
+.brand p,
+.eyebrow,
+.meta-chip{
+  white-space:normal;
+}
+.card,.hero-card,.side-card,.panel,.result-card,.journey-card{
+  isolation:isolate;
+}
+.radar-label{
+  font-size:10px;
+}
+
+/* Desktop/tablet prevent cuts */
+@media(min-width:761px){
+  .hero-title span{
+    font-size:clamp(2.3rem,5vw,5.5rem);
+    line-height:.98;
+  }
+  .hero-title strong{
+    font-size:clamp(2.7rem,5.9vw,6.3rem);
+    line-height:.95;
+    letter-spacing:.055em;
+  }
+  .stage-title{
+    line-height:1.02;
+  }
+  .question-title{
+    line-height:1.1;
+  }
+  .answer-btn strong{
+    line-height:1.2;
+  }
+}
+
+/* Mobile clean and safe */
+@media(max-width:760px){
+  body:after{
+    display:none;
+  }
+  .app{
+    width:min(100% - 14px,1180px);
+    padding-top:12px;
+    padding-bottom:40px;
+  }
+  .topbar{
+    margin-bottom:12px;
+    padding:0 2px;
+    gap:10px;
+  }
+  .brand{
+    gap:10px;
+    min-width:0;
+  }
+  .brand h1{
+    font-size:.9rem;
+    letter-spacing:.13em;
+    line-height:1.05;
+  }
+  .brand p{
+    font-size:.62rem;
+    letter-spacing:.055em;
+    line-height:1.25;
+  }
+  .mark{
+    width:36px;
+    height:36px;
+    font-size:.88rem;
+    flex:none;
+  }
+  .status-pill{
+    font-size:.68rem;
+    padding:7px 9px;
+  }
+
+  .hero{
+    grid-template-columns:1fr;
+    min-height:auto;
+    gap:14px;
+    padding-top:4px;
+  }
+  .hero-card{
+    padding:22px 18px;
+    border-radius:22px;
+  }
+  .side-card{
+    border-radius:22px;
+  }
+  .eyebrow{
+    font-size:.68rem;
+    letter-spacing:.13em;
+    line-height:1.25;
+    margin-bottom:10px;
+  }
+  .hero-title{
+    letter-spacing:-.03em;
+    line-height:1;
+  }
+  .hero-title span{
+    font-size:clamp(1.85rem,11.5vw,2.55rem);
+    line-height:1;
+  }
+  .hero-title strong{
+    font-size:clamp(2.05rem,12.5vw,2.9rem);
+    line-height:.98;
+    letter-spacing:.035em;
+  }
+  .brand-line{
+    font-size:.68rem;
+    line-height:1.35;
+    letter-spacing:.07em;
+  }
+  .lead{
+    font-size:.94rem;
+    line-height:1.5;
+    margin-top:16px;
+  }
+  .quote{
+    margin-top:16px;
+    padding:14px 15px;
+    font-size:.9rem;
+    line-height:1.45;
+    border-radius:14px;
+  }
+  .hero-meta{
+    gap:7px;
+  }
+  .meta-chip{
+    font-size:.64rem;
+    letter-spacing:.035em;
+    padding:7px 9px;
+    line-height:1.25;
+  }
+  .privacy-note{
+    font-size:.78rem;
+  }
+
+  .card,.hero-card,.side-card,.panel,.result-card,.journey-card{
+    border-radius:22px;
+  }
+  .form-head,.form-body,.result-hero,.stage-intro,.stage-complete,.question-screen,.reveal-screen{
+    padding:20px 18px;
+  }
+  .form-head h3{
+    font-size:1.5rem;
+    line-height:1.1;
+  }
+  .field label{
+    font-size:.86rem;
+  }
+  .field input,.field select,.field textarea{
+    min-height:48px;
+    font-size:16px;
+    border-radius:14px;
+  }
+  .consent{
+    font-size:.82rem;
+    line-height:1.4;
+  }
+
+  .journey-shell{
+    grid-template-columns:1fr;
+    gap:12px;
+  }
+  .journey-sidebar{
+    position:relative;
+    top:auto;
+    margin-bottom:0;
+    border-radius:20px;
+  }
+  .progress-wrap{
+    padding:14px 16px;
+  }
+  .progress-title{
+    font-size:.98rem;
+    line-height:1.3;
+  }
+  .stage-list{
+    display:none;
+  }
+  .journey-card{
+    min-height:auto;
+  }
+  .stage-title{
+    font-size:clamp(1.7rem,9.7vw,2.25rem);
+    line-height:1.04;
+    letter-spacing:-.035em;
+  }
+  .stage-title strong{
+    letter-spacing:0;
+  }
+  .stage-desc{
+    font-size:.94rem;
+    line-height:1.5;
+    margin:16px 0;
+  }
+  .stage-pill-row{
+    gap:7px;
+  }
+  .question-meta{
+    gap:8px;
+    margin-bottom:16px;
+  }
+  .question-meta .meta-chip{
+    width:100%;
+    justify-content:center;
+    text-align:center;
+  }
+  .question-title{
+    font-size:clamp(1.35rem,7.2vw,1.85rem);
+    line-height:1.14;
+    letter-spacing:-.02em;
+    margin-bottom:18px;
+  }
+  .answer-grid{
+    grid-template-columns:1fr;
+    gap:10px;
+  }
+  .answer-btn{
+    min-height:78px;
+    padding:14px 15px;
+    border-radius:18px;
+  }
+  .answer-btn span{
+    font-size:.64rem;
+    margin-bottom:6px;
+    line-height:1.2;
+  }
+  .answer-btn strong{
+    font-size:1rem;
+    line-height:1.2;
+  }
+  .question-actions,.screen-actions,.nav-actions{
+    flex-direction:column-reverse;
+    gap:9px;
+    margin-top:18px;
+  }
+
+  .mode-row{
+    align-items:flex-start;
+  }
+  .mode-row h2{
+    font-size:1.7rem!important;
+    line-height:1.06;
+  }
+  .result-layout{
+    grid-template-columns:1fr;
+    gap:14px;
+  }
+  .result-card{
+    border-radius:22px;
+    margin-bottom:0;
+  }
+  .result-hero{
+    padding:20px 18px;
+  }
+  .result-hero h2{
+    font-size:clamp(1.65rem,9vw,2.3rem)!important;
+    line-height:1.06;
+  }
+  .score{
+    margin:12px 0;
+  }
+  .score strong{
+    font-size:clamp(2.8rem,17vw,3.7rem);
+    line-height:.92;
+  }
+  .result-visuals{
+    grid-template-columns:1fr;
+    padding:0 16px 16px;
+    gap:10px;
+  }
+  .visual-card{
+    padding:14px;
+    border-radius:18px;
+  }
+  .radar-card{
+    margin:0 16px 16px!important;
+  }
+  .radar-label{
+    font-size:8.5px;
+  }
+  .areas{
+    padding:16px;
+    gap:9px;
+  }
+  .area-row{
+    padding:12px;
+    border-radius:15px;
+  }
+  .area-top{
+    align-items:flex-start;
+    flex-direction:column;
+    gap:8px;
+  }
+  .area-name{
+    font-size:.9rem;
+  }
+  .badge{
+    font-size:.7rem;
+    padding:6px 9px;
+    line-height:1.2;
+  }
+  .insight{
+    padding:18px;
+    gap:14px;
+  }
+  .insight h4{
+    font-size:.98rem;
+  }
+  .insight p{
+    font-size:.92rem;
+    line-height:1.5;
+  }
+  .reading-block{
+    padding:15px;
+    border-radius:16px;
+  }
+  .result-actions{
+    padding:16px;
+    gap:9px;
+  }
+  .btn,.result-actions .btn,.result-actions a.btn,.hero-actions .btn,.screen-actions .btn,.question-actions .btn,.nav-actions .btn,.topbar .actions .btn{
+    width:100%;
+    min-height:48px;
+    padding:12px 14px;
+    font-size:.92rem;
+    line-height:1.2;
+  }
+}
+
+/* Extra small phones */
+@media(max-width:380px){
+  .app{
+    width:min(100% - 12px,1180px);
+  }
+  .hero-card,.form-head,.form-body,.stage-intro,.stage-complete,.question-screen,.reveal-screen,.result-hero,.insight{
+    padding-left:15px;
+    padding-right:15px;
+  }
+  .brand h1{
+    font-size:.82rem;
+  }
+  .brand p{
+    font-size:.58rem;
+  }
+  .hero-title span{
+    font-size:1.72rem;
+  }
+  .hero-title strong{
+    font-size:1.92rem;
+  }
+  .question-title{
+    font-size:1.28rem;
+  }
+  .answer-btn{
+    min-height:72px;
+  }
+  .donut-chart{
+    width:128px;
+    height:128px;
+  }
+}
+
+/* Print safety */
+@media print{
+  .hero-title span,.hero-title strong,.stage-title,.question-title{
+    word-break:normal!important;
+    overflow-wrap:normal!important;
+  }
+}
+
+</style>
+</head>
+<body>
+<div class="app">
+<header class="topbar">
+  <div class="brand"><div class="mark">I</div><div><h1>INFLUX</h1><p>Ecosistema de Negocios</p></div></div>
+  <div class="actions"><span id="onlineStatus" class="status-pill">Online</span></div>
+</header>
+<main>
+<section id="homeScreen" class="screen active">
+  <div class="hero">
+    <div class="hero-card">
+      <p class="eyebrow">Primera lectura empresarial</p>
+      <h2 class="hero-title"><span>Express</span><strong>INFLUX</strong></h2>
+      <p class="brand-line">Una herramienta del ecosistema INFLUX</p>
+      <p class="lead">Tomá el pulso de tu negocio en 5 minutos y detectá alertas en caja, rentabilidad, comercial, operación y dirección.</p>
+      <div class="quote">Una primera lectura para ordenar mejor tus próximos pasos.</div>
+      <div class="hero-actions"><button class="btn primary" type="button" onclick="startData()">Iniciar Semáforo</button></div>
+      <div class="hero-meta"><span class="meta-chip">Recorrido express · 3 a 5 min</span><span class="meta-chip">15 preguntas</span><span class="meta-chip">Uso guiado</span></div>
+      <p class="privacy-note">La información se utiliza para elaborar una primera lectura del negocio y facilitar una devolución estratégica de INFLUX.</p>
+    </div>
+    <aside class="side-card">
+      <div class="side-head"><strong>Recorrido visual</strong><span class="status-dot"></span></div>
+      <div class="hero-semaforo-wrap"><div class="traffic-light"><span class="light red"></span><span class="light yellow active"></span><span class="light green"></span></div><div><p class="eyebrow" style="margin-bottom:8px">Etapas del negocio</p><h3 class="visual-title">Detectá señales antes de tomar decisiones importantes.</h3><p class="micro">Cinco etapas, preguntas simples y una primera lectura empresarial para ordenar la conversación.</p></div></div>
+      <div class="signal-list"><div class="signal"><span>01 · Finanzas</span><b>Control, caja y presión de pagos.</b></div><div class="signal"><span>02 · Rentabilidad</span><b>Margen, precios y ganancia real.</b></div><div class="signal"><span>03 · Operación</span><b>Roles, procesos y dirección.</b></div></div>
+    </aside>
+  </div>
+</section>
+
+<section id="dataScreen" class="screen">
+  <section class="card">
+    <div class="form-head"><p class="eyebrow">Antes de comenzar</p><h3>Datos básicos</h3><p class="micro">Para personalizar tu lectura, completá estos datos básicos. Te va a llevar menos de un minuto.</p></div>
+    <div class="form-body" id="dataBody"></div>
+    <div class="nav-actions"><button class="btn secondary" type="button" onclick="showScreen('homeScreen')">Volver</button><button class="btn primary" type="button" onclick="beginJourney()">Comenzar recorrido</button></div>
+  </section>
+</section>
+
+<section id="journeyScreen" class="screen">
+  <div class="journey-shell">
+    <aside class="journey-sidebar">
+      <div class="progress-wrap">
+        <div class="step-kicker" id="journeyKicker">Recorrido INFLUX</div>
+        <h3 class="progress-title" id="journeyTitle">Etapas del negocio</h3>
+        <div class="bar"><div id="journeyProgress"></div></div>
+      </div>
+      <div class="stage-list" id="stageList"></div>
+    </aside>
+    <section class="journey-card" id="journeyCard"></section>
+  </div>
+</section>
+
+<section id="resultScreen" class="screen">
+  <div class="mode-row"><div><p class="eyebrow" style="margin-bottom:6px">Resultado generado</p><h2 style="margin:0;font-size:clamp(1.8rem,4vw,3.6rem);letter-spacing:-.045em">Semáforo INFLUX Express</h2></div></div>
+  <div id="resultWrap" class="meeting-mode">
+    <div class="result-layout">
+      <section class="result-card">
+        <div class="result-hero">
+          <span id="generalBadge" class="badge">Resultado</span>
+          <h2 style="font-size:clamp(2rem,5vw,4.2rem);margin-top:16px;">Primera lectura empresarial</h2>
+          <p class="micro" id="resultBusiness"></p>
+          <div class="score"><strong id="generalScore">0%</strong><span>puntaje general</span></div>
+          <p class="micro" id="resultDate"></p>
+          <div class="hero-meta"><span class="meta-chip">Principal señal · <b id="signalChip"></b></span><span class="meta-chip internal-only inline" id="resultPotentialChip">Potencial</span><span class="meta-chip internal-only inline" id="resultQualityChip">Calidad</span></div>
+        </div>
+        <div class="result-visuals"><div class="visual-card"><h4>Semáforo final</h4><div id="trafficLight" class="traffic-light"><span class="light red"></span><span class="light yellow"></span><span class="light green"></span></div><p class="small-note">Indicador general de esta primera lectura.</p></div><div class="visual-card"><h4>Indicador general</h4><div id="donutChart" class="donut-chart"><div class="donut-inner"><strong id="donutScore">0%</strong><span>orden general</span></div></div><p class="small-note">Lectura visual rápida del estado actual.</p></div></div>
+        <div class="visual-card radar-card" style="margin:0 24px 24px"><h4>Resumen de áreas</h4><div id="radarChart" class="radar-wrap"></div></div>
+        <div class="areas" id="areaResults"></div>
+      </section>
+      <section class="result-card">
+        <div class="insight">
+          <div><h4>Principal señal detectada</h4><p id="criticalArea"></p></div>
+          <div><h4>Área con mayor oportunidad</h4><p id="opportunityArea"></p></div>
+          <div class="reading-block"><h4>Lectura INFLUX</h4><p id="influxReading"></p></div>
+          <div><h4>Próximo paso INFLUX sugerido</h4><p id="nextTool"></p></div>
+          <div><h4>Recomendación</h4><p id="recommendedService"></p></div>
+          <div class="reading-block"><h4>¿Querés entender mejor este resultado?</h4><p>Esta lectura express marca una primera señal de tu negocio. Para entender mejor el resultado y definir próximos pasos con más precisión, podés coordinar una devolución con INFLUX.</p><p class="small-note">Tu resultado fue generado correctamente. INFLUX puede contactarte para ampliar esta lectura si solicitás una devolución.</p></div>
+          <div class="internal-only"><h4>Indicadores internos</h4><div class="commercial-grid" id="commercialGrid"></div></div>
+          <div><h4>Cierre</h4><p>Este resultado marca señales iniciales, no conclusiones definitivas. La devolución estratégica permite validar los datos y definir el camino de trabajo.</p></div>
+          <div class="internal-followup internal-only"><h4>Seguimiento interno INFLUX</h4><p class="small-note">Esta sección permite registrar próximos pasos comerciales sin afectar la devolución visible para el cliente.</p><div class="grid"><div class="field"><label for="leadStatus">Estado del contacto</label><select id="leadStatus"><option>Nuevo contacto</option><option>Contactado</option><option>Reunión agendada</option><option>Propuesta enviada</option><option>Cliente activo</option><option>No avanzado</option></select></div><div class="field"><label for="nextAction">Próxima acción</label><select id="nextAction"><option>Pendiente de devolución</option><option>Enviar PDF / resumen</option><option>Agendar reunión</option><option>Enviar propuesta</option><option>Hacer seguimiento</option><option>Archivar</option></select></div><div class="field"><label for="followupDate">Fecha de seguimiento</label><input id="followupDate" type="date" /></div><div class="field"><label for="potentialValue">Valor potencial / honorarios estimados</label><input id="potentialValue" type="text" placeholder="Ej: diagnóstico, mensualidad, proyecto" /></div></div><div class="field" style="margin-top:14px"><label for="internalNotes">Observaciones internas</label><textarea id="internalNotes" placeholder="Qué viste en la reunión, nivel de urgencia, objeciones, próximos pasos..."></textarea></div><button class="btn secondary" type="button" onclick="updateInternalFollowup()">Actualizar seguimiento interno</button></div>
+        </div>
+        <div class="result-actions">
+        <a id="ctaAmplifyBtn" class="btn primary" target="_blank" rel="noopener">Quiero ampliar mi resultado</a>
+        <a id="ctaMeetingBtn" class="btn secondary" target="_blank" rel="noopener">Coordinar una devolución</a>
+        <button class="btn secondary" type="button" onclick="preparePrintReport()">Descargar mi Semáforo</button>
+        <a class="btn secondary" href="https://influx.com.ar" target="_blank" rel="noopener">Conocer INFLUX</a>
+        <a class="btn secondary" href="https://influxargentina.github.io/Radar/" target="_blank" rel="noopener">Ver Radar Empresarial INFLUX</a>
+        <button class="btn secondary" type="button" onclick="newDiagnosis()">Nuevo Semáforo</button>
+      </div>
+      </section>
+    </div>
+  </div>
+</section>
+
+<section id="panelScreen" class="screen">
+  <div class="panel"><div class="panel-head"><div><p class="eyebrow" style="margin-bottom:8px">Panel interno</p><h3>Panel INFLUX · Registros guardados</h3><p class="micro">Base local guardada en este navegador/dispositivo. Compatible con uso offline. Podés exportar los registros en CSV al finalizar la recorrida.</p><p id="offlinePanelNote" class="small-note"></p></div><div class="actions"><button class="btn secondary small" onclick="showScreen('homeScreen')">Volver al inicio</button><button class="btn small" onclick="syncPendingRecords()">Sincronizar pendientes</button><button class="btn small" onclick="exportCSV()">Exportar CSV</button><button class="btn danger small" onclick="clearLocalDatabase()">Borrar base local</button></div></div><div id="recordsTable" class="table-wrap"></div></div>
+</section>
+
+<section id="printReport" class="print-report">
+  <div class="print-cover"><p class="eyebrow">Informe Semáforo INFLUX</p><h2 class="print-brand">INFLUX</h2><h3 class="print-title">Semáforo INFLUX Express · Primera lectura empresarial</h3><p class="print-subtitle" id="printHeader"></p></div>
+  <div class="print-grid" id="printKpis"></div>
+  <div class="print-chart-grid">
+    <div class="print-section"><h4>Semáforo final</h4><div id="printTraffic"></div></div>
+    <div class="print-section"><h4>Indicador general</h4><div id="printScoreVisual"></div></div>
+  </div>
+  <div class="print-section"><h4>Gráfico por áreas</h4><div id="printBars" class="print-bars"></div></div>
+  <div class="print-section"><h4>Lectura INFLUX</h4><p id="printReading"></p></div>
+  <div class="print-grid"><div class="print-section"><h4>Principal señal detectada</h4><p id="printCritical"></p></div><div class="print-section"><h4>Área con oportunidad</h4><p id="printOpportunity"></p></div></div>
+  <div class="print-section"><h4>Próximo paso sugerido</h4><p id="printNext"></p></div>
+  <p class="print-subtitle">Este resultado marca señales iniciales, no conclusiones definitivas. La devolución estratégica permite validar los datos y definir el camino de trabajo.</p>
+  <div class="print-signature">INFLUX · Ecosistema de Negocios</div>
+</section>
+</main>
+<p class="footer-note">INFLUX · Primera lectura empresarial.</p>
+</div>
+<div id="toast" class="toast"></div>
+
+<script>
+const WHATSAPP_INFLUX="5493512005225";
+const STORAGE_KEY="semaforo_influx_express_publico_qr_records";
+const GOOGLE_SHEETS_WEBAPP_URL="https://script.google.com/macros/s/AKfycbz9Bu3y7snwr_a38CxToKql1S12OwLwbcyZyBbfmuErFeT4TebyKSGLV9FR2GGUyGMhbg/exec";
+const PANEL_PASS="INFLUX23";
+
+const stages=[
+{id:"finanzas",area:"Finanzas y caja",intro:"Vamos a revisar si el negocio tiene control sobre ingresos, egresos y caja mensual.",questions:[{id:"fin_1",text:"¿Tenés control mensual de ingresos y egresos?",positive:true},{id:"fin_2",text:"¿Sabés cuánto dinero necesita tu negocio para cubrir sus costos todos los meses?",positive:true},{id:"fin_3",text:"¿Tenés problemas de caja durante el mes?",positive:false}]},
+{id:"rentabilidad",area:"Rentabilidad",intro:"Vamos a revisar si el negocio vende con margen real o solo mueve caja.",questions:[{id:"ren_1",text:"¿Conocés el margen real de ganancia de tus productos o servicios?",positive:true},{id:"ren_2",text:"¿Actualizás precios con un criterio claro?",positive:true},{id:"ren_3",text:"¿Sentís que vendés, pero no siempre ves ganancia real?",positive:false}]},
+{id:"comercial",area:"Comercial y clientes",intro:"Vamos a revisar si existe un sistema comercial para generar, convertir y sostener clientes.",questions:[{id:"com_1",text:"¿Tenés objetivos comerciales mensuales?",positive:true},{id:"com_2",text:"¿Medís consultas y cuántas se convierten en ventas?",positive:true},{id:"com_3",text:"¿Hacés seguimiento a clientes potenciales?",positive:true}]},
+{id:"operacion",area:"Operación y equipo",intro:"Vamos a revisar si el negocio puede funcionar con procesos, roles y seguimiento.",questions:[{id:"ope_1",text:"¿Tu negocio puede funcionar bien si vos no estás unos días?",positive:true},{id:"ope_2",text:"¿Cada persona del equipo sabe claramente qué tiene que hacer?",positive:true},{id:"ope_3",text:"¿Tenés procesos escritos o una forma clara de trabajar?",positive:true}]},
+{id:"direccion",area:"Dirección y prioridades",intro:"Vamos a revisar si el dueño dirige con claridad o vive apagando urgencias.",questions:[{id:"dir_1",text:"¿Sentís que dirigís el negocio o que el negocio te dirige a vos?",positive:true,custom:[{label:"Dirijo con claridad",value:2},{label:"Depende del momento",value:1},{label:"El negocio me dirige a mí",value:0}]},{id:"dir_2",text:"¿Tenés claras las 3 prioridades de los próximos 90 días?",positive:true},{id:"dir_3",text:"¿Tomás decisiones con datos y no solo con urgencias?",positive:true}]}
+];
+
+const state={data:{},answers:{},stageIndex:0,questionIndex:-1,currentResult:null,lastSavedResultId:null,mode:"meeting"};
+function getUrlParam(name){
+  try{return new URLSearchParams(window.location.search).get(name)||""}catch(e){return""}
+}
+const URL_ORIGEN=getUrlParam("origen");
+const URL_CAMPANIA=getUrlParam("campania");
+
+function showToast(m){const t=document.getElementById("toast");t.textContent=m;t.classList.add("show");setTimeout(()=>t.classList.remove("show"),2800)}
+function showScreen(id){document.querySelectorAll(".screen").forEach(s=>s.classList.remove("active"));document.getElementById(id).classList.add("active");window.scrollTo({top:0,behavior:"smooth"});if(id==="panelScreen")renderPanel()}
+function updateConnectionStatus(){const online=navigator.onLine;const pill=document.getElementById("onlineStatus");pill.textContent=online?"Online":"Offline";pill.classList.toggle("offline",!online);const note=document.getElementById("offlinePanelNote");if(note)note.textContent=online?"":"Estás trabajando sin conexión. Los registros se guardan en este dispositivo y podrás exportarlos luego."}
+window.addEventListener("online",updateConnectionStatus);window.addEventListener("offline",updateConnectionStatus);updateConnectionStatus();
+
+function startData(){
+  if(!state.data.origenContacto) state.data.origenContacto = (typeof URL_ORIGEN!="undefined" && URL_ORIGEN) ? URL_ORIGEN : "QR / Web";
+  if(typeof URL_CAMPANIA!="undefined" && URL_CAMPANIA && !state.data.campania) state.data.campania = URL_CAMPANIA;
+  try{
+    renderDataStep();
+    showScreen("dataScreen");
+  }catch(error){
+    console.error(error);
+    alert("No se pudo iniciar el Semáforo. Probá recargar la página o abrir el archivo nuevamente.");
+  }
+}
+function newDiagnosis(){state.data={};state.answers={};state.stageIndex=0;state.questionIndex=-1;state.currentResult=null;state.lastSavedResultId=null;renderDataStep();showScreen("dataScreen")}
+function renderDataStep(){
+  const d=state.data;
+  const rubros=["","Comercio","Gastronomía","Servicios","Industria","Profesional","Inmobiliario","Construcción","Agro","Otro"];
+  const roles=["","Dueño/a","Socio/a","Encargado/a","Administración","Comercial / Ventas","Otro"];
+  if(!d.origenContacto){
+    d.origenContacto = (typeof URL_ORIGEN!="undefined" && URL_ORIGEN) ? URL_ORIGEN : ("QR / Web");
+  }
+  if(typeof URL_CAMPANIA!="undefined" && URL_CAMPANIA && !d.campania) d.campania=URL_CAMPANIA;
+  else if(!d.campania) d.campania="General";
+  document.getElementById("dataBody").innerHTML=`<div class="grid">
+    ${inputField("responsable","Nombre de la persona",d.responsable)}
+    ${inputField("nombreNegocio","Nombre del negocio",d.nombreNegocio)}
+    ${inputField("whatsapp","WhatsApp / celular",d.whatsapp)}
+    ${selectField("rubro","Rubro",rubros,d.rubro)}
+    ${inputField("ciudad","Zona / Ciudad",d.ciudad)}
+    ${selectField("rolNegocio","Rol en el negocio",roles,d.rolNegocio)}
+  </div>
+  <label class="consent"><input id="consent" type="checkbox" ${state.answers.consent?"checked":""} onchange="state.answers.consent=this.checked" /><span>Acepto que INFLUX utilice esta información para elaborar una primera lectura empresarial y contactarme para una devolución.</span></label>`;
+}
+function inputField(id,label,value="",type="text"){return `<div class="field"><label for="${id}">${label}</label><input id="${id}" type="${type}" value="${escapeAttr(value||"")}" oninput="state.data['${id}']=this.value" /></div>`}
+function selectField(id,label,options,value=""){return `<div class="field"><label for="${id}">${label}</label><select id="${id}" onchange="state.data['${id}']=this.value">${options.map(o=>`<option value="${escapeAttr(o)}" ${o===value?"selected":""}>${o||"Seleccionar"}</option>`).join("")}</select></div>`}
+function textareaField(id,label,value=""){return `<div class="field"><label for="${id}">${label}</label><textarea id="${id}" oninput="state.answers['${id}']=this.value">${escapeHtml(value||"")}</textarea></div>`}
+function captureData(){
+  ["nombreNegocio","responsable","whatsapp","rubro","ciudad","rolNegocio"].forEach(id=>{const el=document.getElementById(id);if(el)state.data[id]=el.value.trim()});
+  // Mantener compatibilidad con la base actual: campos de segunda reunión se envían vacíos.
+  state.data.email = state.data.email || "";
+  state.data.instagram = state.data.instagram || "";
+  state.data.empleados = state.data.empleados || "";
+  state.data.sucursales = state.data.sucursales || "";
+  state.data.facturacion = state.data.facturacion || "";
+  state.data.origenContacto = state.data.origenContacto || ("QR / Web");
+  state.data.campania = state.data.campania || "General";
+  ["dolorPrincipal","areaTiempo","ordenarPrimero","objetivoSeisMeses"].forEach(id=>{if(!state.answers[id])state.answers[id]=""});
+  const c=document.getElementById("consent");if(c)state.answers.consent=c.checked;
+}
+function validateData(){
+  captureData();
+  const labels={responsable:"Nombre de la persona",nombreNegocio:"Nombre del negocio",whatsapp:"WhatsApp",rubro:"Rubro",ciudad:"Zona / Ciudad",rolNegocio:"Rol en el negocio"};
+  const missing=["responsable","nombreNegocio","whatsapp","rubro","ciudad","rolNegocio"].filter(id=>!String(state.data[id]||"").trim());
+  document.querySelectorAll(".field input,.field select").forEach(el=>{el.style.borderColor="rgba(255,255,255,.1)"});
+  if(missing.length){
+    const first=document.getElementById(missing[0]);
+    if(first){first.style.borderColor="rgba(210,154,110,.95)";first.focus();}
+    showToast("Falta completar: "+missing.map(id=>labels[id]).join(", ")+".");
+    return false;
+  }
+  if(!state.answers.consent){
+    showToast("Marcá el consentimiento para iniciar el recorrido.");
+    const c=document.getElementById("consent"); if(c) c.focus();
+    return false;
+  }
+  return true;
+}
+function beginJourney(){if(!validateData())return;state.stageIndex=0;state.questionIndex=-1;renderJourney();showScreen("journeyScreen")}
+function renderStageList(){document.getElementById("stageList").innerHTML=stages.map((s,i)=>`<div class="stage-item ${i===state.stageIndex?"active":""} ${i<state.stageIndex?"done":""}"><span class="stage-num">${i+1}</span><div><strong>${s.area}</strong><br><span style="font-size:.82rem;color:var(--muted)">${s.questions.length} preguntas</span></div></div>`).join("")}
+function totalQuestions(){return stages.reduce((n,s)=>n+s.questions.length,0)}
+function answeredCount(){let count=0;stages.forEach(s=>s.questions.forEach(q=>{if(typeof state.answers[q.id]!="undefined")count++}));return count}
+function renderJourney(){renderStageList();const stage=stages[state.stageIndex];const total=totalQuestions();const answered=answeredCount();document.getElementById("journeyProgress").style.width=`${Math.round(answered/total*100)}%`;document.getElementById("journeyKicker").textContent=`Recorrido INFLUX · ${answered} de ${total}`;document.getElementById("journeyTitle").textContent=stage?stage.area:"Resultado";const card=document.getElementById("journeyCard");if(state.questionIndex===-1){card.innerHTML=`<div class="stage-intro"><p class="eyebrow">Etapa ${state.stageIndex+1} de ${stages.length}</p><h2 class="stage-title">Ahora vamos a revisar:<strong>${stage.area}</strong></h2><p class="stage-desc">${stage.intro}</p><div class="stage-pill-row"><span class="meta-chip">${stage.questions.length} preguntas rápidas</span><span class="meta-chip">Una por pantalla</span><span class="meta-chip">Señales por área</span></div><div class="screen-actions"><button class="btn secondary" onclick="backFromStageIntro()">Volver</button><button class="btn primary" onclick="startStageQuestions()">Comenzar etapa</button></div></div>`;return}if(state.questionIndex>=stage.questions.length){card.innerHTML=`<div class="stage-complete"><p class="eyebrow">Etapa completada</p><h2 class="stage-title"><strong>${stage.area}</strong></h2><p class="stage-desc">Ya tenemos una primera señal sobre esta área. Sigamos con la próxima etapa.</p><div class="screen-actions"><button class="btn secondary" onclick="backToLastQuestion()">Volver</button><button class="btn primary" onclick="continueAfterStage()">Continuar</button></div></div>`;return}const q=stage.questions[state.questionIndex];const opts=questionOptions(q);card.innerHTML=`<div class="question-screen"><div class="question-meta"><span class="meta-chip">Etapa ${state.stageIndex+1} de ${stages.length} · ${stage.area}</span><span class="meta-chip">Pregunta ${state.questionIndex+1} de ${stage.questions.length}</span></div><h2 class="question-title">${escapeHtml(q.text)}</h2><div class="answer-grid">${opts.map((o,i)=>`<button class="answer-btn ${Number(state.answers[q.id])===o.value?"selected":""}" onclick="selectAnswer('${q.id}',${o.value})"><span>Respuesta ${i+1}</span><strong>${escapeHtml(o.label)}</strong></button>`).join("")}</div><div class="question-actions"><button class="btn secondary" onclick="backQuestion()">Volver</button><button class="btn primary" onclick="nextQuestion()">Siguiente</button></div></div>`}
+function questionOptions(q){return q.custom || (q.positive?[{label:"Sí, lo tengo claro",value:2},{label:"Más o menos",value:1},{label:"No, no lo tengo claro",value:0}]:[{label:"No, casi nunca",value:2},{label:"A veces",value:1},{label:"Sí, frecuentemente",value:0}])}
+function selectAnswer(id,value){state.answers[id]=value;renderJourney()}
+function startStageQuestions(){state.questionIndex=0;renderJourney()}
+function backFromStageIntro(){if(state.stageIndex===0){showScreen("dataScreen");return}state.stageIndex--;state.questionIndex=stages[state.stageIndex].questions.length;renderJourney()}
+function backToLastQuestion(){state.questionIndex=stages[state.stageIndex].questions.length-1;renderJourney()}
+function backQuestion(){if(state.questionIndex>0){state.questionIndex--;renderJourney();return}state.questionIndex=-1;renderJourney()}
+function nextQuestion(){const stage=stages[state.stageIndex];const q=stage.questions[state.questionIndex];if(typeof state.answers[q.id]==="undefined"){showToast("Seleccioná una respuesta para continuar.");return}state.questionIndex++;renderJourney()}
+function continueAfterStage(){if(state.stageIndex<stages.length-1){state.stageIndex++;state.questionIndex=-1;renderJourney();return}renderReveal()}
+function renderReveal(){document.getElementById("journeyTitle").textContent="Resultado generado";document.getElementById("journeyProgress").style.width="100%";document.getElementById("journeyCard").innerHTML=`<div class="reveal-screen"><p class="eyebrow">Resultado generado</p><h2 class="stage-title">INFLUX está preparando tu<strong>primera lectura empresarial.</strong></h2><p class="stage-desc">Ya completamos las 5 etapas del recorrido. Ahora vamos a ver el Semáforo final y la principal señal detectada.</p><div class="screen-actions"><button class="btn secondary" onclick="state.stageIndex=stages.length-1;state.questionIndex=stages[state.stageIndex].questions.length;renderJourney()">Volver</button><button class="btn primary" onclick="calculateAndShowResult()">Ver resultado</button></div></div>`}
+
+function calculateAndShowResult(){const areas=stages.map(s=>{const total=s.questions.reduce((sum,q)=>sum+Number(state.answers[q.id]||0),0),max=s.questions.length*2,percent=Math.round(total/max*100),status=getStatus(percent);return {id:s.id,name:s.area,questions:s.questions,total,max,percent,status}});const generalPercent=Math.round(areas.reduce((sum,a)=>sum+a.percent,0)/areas.length);const generalStatus=getStatus(generalPercent);const critical=[...areas].sort((a,b)=>a.percent-b.percent)[0];const opportunity=[...areas].sort((a,b)=>b.percent-a.percent)[0];const redCount=areas.filter(a=>a.status.key==="red").length;const yellowCount=areas.filter(a=>a.status.key==="yellow").length;const recommended=serviceByArea(critical.name,redCount,generalStatus.key);const nextTool=siguienteHerramienta(critical.name,redCount,generalStatus.key);const reading=readingByStatus(generalStatus.key,critical.name);const roadmap=roadmapByStatus(generalStatus.key,critical.name,nextTool);const responseQ=responseQuality(areas);const potential=potentialInflux(generalStatus.key,redCount,critical.name,responseQ);const now=new Date();const result={id:cryptoRandomId(),tipoSemaforo:"Express Público",syncStatus:"Pendiente online",fechaHora:formatDateTime(now),timestamp:now.toISOString(),campania:state.data.campania||((typeof URL_CAMPANIA!="undefined"&&URL_CAMPANIA)?URL_CAMPANIA:"General"),...state.data,areas,puntajeFinanzasCaja:getAreaPercent(areas,"Finanzas y caja"),puntajeRentabilidad:getAreaPercent(areas,"Rentabilidad"),puntajeComercialClientes:getAreaPercent(areas,"Comercial y clientes"),puntajeOperacionEquipo:getAreaPercent(areas,"Operación y equipo"),puntajeDireccionPrioridades:getAreaPercent(areas,"Dirección y prioridades"),puntajeGeneral:generalPercent,resultadoGeneral:generalStatus.label,areaCritica:critical.name,areaOportunidad:opportunity.name,servicioRecomendado:recommended,lecturaInflux:reading,potencialInflux:potential,calidadRespuesta:responseQ,siguienteHerramienta:nextTool,estadoContacto:"Nuevo contacto",proximaAccion:"Pendiente de devolución",fechaSeguimiento:"",valorPotencial:"",observacionInterna:"",roadmapPlan:roadmap,dolorPrincipal:state.answers.dolorPrincipal||"",areaTiempo:state.answers.areaTiempo||"",ordenarPrimero:state.answers.ordenarPrimero||"",objetivoSeisMeses:state.answers.objetivoSeisMeses||""};state.currentResult=result;state.lastSavedResultId=null;renderResult(result);autoSaveCurrentDiagnosis();setMode("meeting");showScreen("resultScreen")}
+function getStatus(p){if(p>=70)return{key:"green",label:"Verde",text:"Ordenado"};if(p>=40)return{key:"yellow",label:"Amarillo",text:"Alerta media"};return{key:"red",label:"Rojo",text:"Alerta alta"}}
+function getAreaPercent(areas,name){const a=areas.find(x=>x.name===name);return a?`${a.percent}%`:""}
+function serviceByArea(a,red,status){if(status==="green")return"Tablero de indicadores y seguimiento estratégico";if(red>=2)return"Diagnóstico 360 INFLUX";return {"Finanzas y caja":"Orden financiero + tablero de control","Rentabilidad":"Análisis de costos, márgenes y punto de equilibrio","Comercial y clientes":"Sistema comercial + seguimiento de clientes","Operación y equipo":"Orden operativo, roles y procesos","Dirección y prioridades":"Dirección estratégica y acompañamiento empresarial"}[a]||"Diagnóstico empresarial INFLUX"}
+function siguienteHerramienta(a,red,status){if(status==="green")return"Tablero INFLUX";if(red>=2)return"Diagnóstico 360 INFLUX";if(["Finanzas y caja","Rentabilidad"].includes(a))return"Calculadora INFLUX";return"Mapa INFLUX"}
+function readingByStatus(s,critical){const rubroLine=state.data.rubro?` Para un negocio de ${state.data.rubro.toLowerCase()}, esta lectura ayuda a ordenar prioridades antes de invertir más esfuerzo.`:"";const dolor=state.answers.dolorPrincipal?` El dolor declarado fue: “${state.answers.dolorPrincipal}”.`:"";if(s==="red")return `La principal señal aparece en ${critical}. Puede haber movimiento, ventas y esfuerzo diario, pero algunas áreas podrían estar afectando la rentabilidad, la caja o la capacidad de crecer con orden. Conviene validar estos datos y profundizar antes de empujar más acciones.${rubroLine}${dolor}`;if(s==="yellow")return `La principal señal aparece en ${critical}. El negocio muestra una base de funcionamiento, pero todavía hay puntos que conviene revisar para ordenar información, mejorar decisiones y profesionalizar la gestión.${rubroLine}${dolor}`;return `El negocio muestra buenos niveles de orden y control en varias áreas. El desafío ahora sería sostener ese funcionamiento, medir mejor los indicadores y buscar oportunidades de crecimiento con mayor estrategia.${rubroLine}${dolor}`}
+function roadmapByStatus(statusKey,critical,nextTool){if(statusKey==="red")return `El próximo paso sugerido sería avanzar con ${nextTool} para validar datos, revisar prioridades y definir un plan de acción sobre ${critical}.`;if(statusKey==="yellow")return `El próximo paso sugerido sería complementar esta primera lectura con ${nextTool}, para ordenar prioridades y definir mejoras sobre ${critical}.`;return `El próximo paso sugerido sería trabajar con ${nextTool} para sostener indicadores y planificar crecimiento con más criterio.`}
+function responseQuality(areas){const filled=["nombreNegocio","responsable","whatsapp","rubro","ciudad"].filter(k=>String(state.data[k]||"").trim()).length;const dolor=String(state.answers.dolorPrincipal||"").trim().length;const obj=String(state.answers.objetivoSeisMeses||"").trim().length;const vals=areas.map(a=>a.percent);const spread=Math.max(...vals)-Math.min(...vals);if(filled>=5&&dolor>18&&obj>18&&spread>=15)return"Alta";if(!dolor||!obj||spread<8)return"A validar";return"Media"}
+function potentialInflux(status,red,critical,quality){const fact=state.data.facturacion||"";const dolor=((state.answers.dolorPrincipal||"")+" "+(state.answers.ordenarPrimero||"")).toLowerCase();const highFact=["Entre $15M y $30M","Entre $30M y $60M","Más de $60M"].includes(fact);const strongPain=["caja","margen","rentabilidad","depende","control","deuda","no sé cuánto","no se cuanto","todo depende","orden"].some(x=>dolor.includes(x));if(status==="red"||red>=2||(["Finanzas y caja","Rentabilidad","Operación y equipo","Dirección y prioridades"].includes(critical)&&strongPain)||(status==="yellow"&&highFact&&strongPain))return"Alto";if(status==="yellow"||red>=1||quality==="Media")return"Medio";return"Bajo"}
+
+function renderResult(r){const status=getStatus(r.puntajeGeneral),b=document.getElementById("generalBadge");b.className=`badge ${status.key}`;b.textContent=`${r.resultadoGeneral} · ${status.text}`;document.getElementById("generalScore").textContent=`${r.puntajeGeneral}%`;document.getElementById("donutScore").textContent=`${r.puntajeGeneral}%`;document.getElementById("resultBusiness").textContent=`${r.nombreNegocio||"Negocio evaluado"} · ${r.rubro||"Rubro no informado"} · ${r.ciudad||"Ciudad no informada"}`;document.getElementById("resultDate").textContent=`Fecha: ${r.fechaHora}`;document.getElementById("criticalArea").textContent=`${r.areaCritica}. Es una señal inicial a revisar porque podría estar afectando el crecimiento, la caja o la claridad de gestión.`;document.getElementById("opportunityArea").textContent=`${r.areaOportunidad}. Es el área que hoy muestra mejor base para sostener mejoras y construir desde ahí.`;document.getElementById("influxReading").textContent=r.lecturaInflux;document.getElementById("recommendedService").textContent=(r.servicioRecomendado==="Diagnóstico 360 INFLUX"?"Coordinar una devolución estratégica para analizar el negocio con más profundidad.":r.servicioRecomendado);document.getElementById("nextTool").textContent=(r.siguienteHerramienta==="Diagnóstico 360 INFLUX"?"Coordinar una devolución estratégica para analizar el negocio con más profundidad.":r.siguienteHerramienta);const signalEl=document.getElementById("signalChip"); if(signalEl) signalEl.textContent=r.areaCritica; updateSyncBadge(r);
+const potEl=document.getElementById("resultPotentialChip"); if(potEl) potEl.textContent=`Potencial · ${r.potencialInflux}`;
+const qualEl=document.getElementById("resultQualityChip"); if(qualEl) qualEl.textContent=`Calidad · ${r.calidadRespuesta}`;document.getElementById("areaResults").innerHTML=r.areas.map(a=>`<div class="area-row"><div class="area-top"><span class="area-name">${escapeHtml(a.name)}</span><span class="badge ${a.status.key}">${a.status.label} · ${a.percent}%</span></div><div class="meter"><span class="${a.status.key}" style="width:${a.percent}%"></span></div></div>`).join("");const cg=document.getElementById("commercialGrid"); if(cg) cg.innerHTML=[["Potencial INFLUX",r.potencialInflux],["Calidad de respuesta",r.calidadRespuesta],["Siguiente herramienta",r.siguienteHerramienta],["Estado online",r.syncStatus||"Pendiente online"]].map(x=>`<div class="commercial-card"><span>${x[0]}</span><strong>${x[1]}</strong></div>`).join("");renderTrafficLight(status.key);renderDonut(r.puntajeGeneral,status.key);renderRadarChart(r.areas);renderWhatsAppLinks(r);setFollowupInputs(r)}
+function setMode(mode){
+  state.mode="meeting";
+  const wrap=document.getElementById("resultWrap");
+  if(wrap)wrap.className="meeting-mode";
+}
+function renderTrafficLight(key){const wrap=document.getElementById("trafficLight");wrap.querySelectorAll(".light").forEach(el=>el.classList.remove("active"));const target=wrap.querySelector(`.light.${key}`);if(target)target.classList.add("active")}
+function renderDonut(percent,key){const chart=document.getElementById("donutChart");const color=key==="green"?"#5da489":key==="yellow"?"#c99556":"#a95650";const deg=Math.max(0,Math.min(360,Math.round(percent*3.6)));chart.style.background=`conic-gradient(${color} 0deg ${deg}deg, #d29a6e ${deg}deg ${deg+8}deg, #1a1716 ${deg+8}deg 360deg)`}
+function renderRadarChart(areas){const wrap=document.getElementById("radarChart");const labels=areas.map(a=>a.name),vals=areas.map(a=>a.percent),w=360,h=310,cx=180,cy=150,r=95,levels=[20,40,60,80,100];const step=Math.PI*2/labels.length;function pt(i,p){const ang=-Math.PI/2+i*step,rr=r*(p/100);return[cx+Math.cos(ang)*rr,cy+Math.sin(ang)*rr]}const grid=levels.map(l=>`<polygon class="radar-grid" points="${labels.map((_,i)=>pt(i,l).join(",")).join(" ")}" />`).join("");const axes=labels.map((_,i)=>{const [x,y]=pt(i,100);return`<line class="radar-axis" x1="${cx}" y1="${cy}" x2="${x}" y2="${y}" />`}).join("");const shape=vals.map((v,i)=>pt(i,v).join(",")).join(" ");const pts=vals.map((v,i)=>{const [x,y]=pt(i,v);return`<circle class="radar-point" cx="${x}" cy="${y}" r="4" />`}).join("");const text=labels.map((label,i)=>{const [x,y]=pt(i,118);return`<text class="radar-label" x="${x}" y="${y}" text-anchor="middle">${escapeHtml(label)}</text>`}).join("");wrap.innerHTML=`<svg viewBox="0 0 ${w} ${h}" role="img" aria-label="Radar de áreas">${grid}${axes}<polygon class="radar-shape" points="${shape}" />${pts}${text}</svg>`}
+function renderWhatsAppLinks(r){
+  const clientPhone=normalizePhone(r.whatsapp||"");
+  const clientMsg=encodeURIComponent(`Hola ${r.responsable||""}, te comparto el resultado preliminar de tu Semáforo INFLUX para ${r.nombreNegocio||"tu negocio"}.
+
+Resultado general: ${r.puntajeGeneral}% (${r.resultadoGeneral})
+Principal señal detectada: ${r.areaCritica}
+Próximo paso sugerido: ${r.siguienteHerramienta}
+
+Este resultado marca señales iniciales, no conclusiones definitivas. La devolución estratégica permite validar los datos y definir el camino de trabajo.`);
+  const clientBtn=document.getElementById("whatsappClientBtn");
+  if(clientBtn){
+    if(clientPhone){clientBtn.href=`https://wa.me/${clientPhone}?text=${clientMsg}`;clientBtn.style.display="inline-flex"}else{clientBtn.removeAttribute("href");clientBtn.style.display="none"}
+  }
+  const msg=encodeURIComponent(`SEMÁFORO INFLUX · Nuevo contacto
+Negocio: ${r.nombreNegocio||""}
+Responsable: ${r.responsable||""}
+WhatsApp: ${r.whatsapp||""}
+Rubro: ${r.rubro||""}
+Ciudad: ${r.ciudad||""}
+Rol: ${r.rolNegocio||""}
+Facturación: ${r.facturacion||""}
+Dónde conoció INFLUX: ${r.origenContacto||""}
+Resultado general: ${r.puntajeGeneral}% (${r.resultadoGeneral})
+Principal señal detectada: ${r.areaCritica}
+Área con mayor oportunidad: ${r.areaOportunidad}
+Servicio recomendado: ${r.servicioRecomendado}
+Siguiente herramienta sugerida: ${r.siguienteHerramienta}
+Potencial INFLUX: ${r.potencialInflux}
+Calidad de respuesta: ${r.calidadRespuesta}
+Dolor principal: ${r.dolorPrincipal||""}
+Objetivo 6 meses: ${r.objetivoSeisMeses||""}
+Próxima acción sugerida: ${r.roadmapPlan}`);
+  const wb=document.getElementById("whatsappBtn"); if(wb) wb.href=`https://wa.me/${WHATSAPP_INFLUX}?text=${msg}`;
+  const amp=document.getElementById("ctaAmplifyBtn");
+  if(amp){amp.href=`https://wa.me/${WHATSAPP_INFLUX}?text=${encodeURIComponent(`Hola INFLUX, completé el Semáforo Express y quiero ampliar mi resultado.
+
+Me gustaría coordinar una devolución para entender mejor qué señales aparecieron y qué pasos podría seguir.`)}`;}
+  const meet=document.getElementById("ctaMeetingBtn");
+  if(meet){meet.href=`https://wa.me/${WHATSAPP_INFLUX}?text=${encodeURIComponent(`Hola INFLUX, completé el Semáforo Express.
+
+Me gustaría coordinar una devolución para revisar el resultado con más detalle.`)}`;}
+}
+function setFollowupInputs(r){const map={leadStatus:r.estadoContacto||"Nuevo contacto",nextAction:r.proximaAccion||"Pendiente de devolución",followupDate:r.fechaSeguimiento||"",potentialValue:r.valorPotencial||"",internalNotes:r.observacionInterna||""};Object.entries(map).forEach(([id,val])=>{const el=document.getElementById(id);if(el)el.value=val})}
+function normalizePhone(v){let n=String(v||"").replace(/\D/g,"");if(n.startsWith("0"))n=n.slice(1);if(!n)return"";if(n.startsWith("54"))return n;if(n.length>=10)return "54"+n;return n}
+
+function readRecords(){try{return JSON.parse(localStorage.getItem(STORAGE_KEY)||"[]")}catch(e){return[]}}
+function writeRecords(r){localStorage.setItem(STORAGE_KEY,JSON.stringify(r))}
+function autoSaveCurrentDiagnosis(){
+  if(!state.currentResult)return;
+  if(state.lastSavedResultId===state.currentResult.id)return;
+  state.currentResult.syncStatus=navigator.onLine?"Pendiente online":"Guardado localmente";
+  state.currentResult.lastSyncAttempt="";
+  const records=readRecords();
+  records.push(state.currentResult);
+  writeRecords(records);
+  state.lastSavedResultId=state.currentResult.id;
+  updateSyncBadge(state.currentResult);
+  showToast("Resultado guardado en este dispositivo.");
+  syncRecordOnline(state.currentResult);
+}
+
+function updateSyncBadge(r){
+  const badge=document.getElementById("syncStatusBadge");
+  if(!badge||!r)return;
+  const status=r.syncStatus||"Pendiente online";
+  badge.textContent=status;
+  badge.classList.toggle("offline",status!=="Sincronizado online");
+}
+
+function persistCurrentRecord(){
+  if(!state.currentResult)return;
+  let records=readRecords();
+  const idx=records.findIndex(r=>r.id===state.currentResult.id);
+  if(idx>=0)records[idx]=state.currentResult;else records.push(state.currentResult);
+  writeRecords(records);
+  updateSyncBadge(state.currentResult);
+}
+
+function buildOnlinePayload(record){
+  return {
+    tipoSemaforo: record.tipoSemaforo || "Presencial",
+    nombreNegocio: record.nombreNegocio || "",
+    responsable: record.responsable || "",
+    whatsapp: record.whatsapp || "",
+    email: record.email || "",
+    instagram: record.instagram || "",
+    rubro: record.rubro || "",
+    ciudad: record.ciudad || "",
+    rolNegocio: record.rolNegocio || "",
+    empleados: record.empleados || "",
+    sucursales: record.sucursales || "",
+    facturacion: record.facturacion || "",
+    origenContacto: record.origenContacto || "",
+    puntajeFinanzasCaja: record.puntajeFinanzasCaja || "",
+    puntajeRentabilidad: record.puntajeRentabilidad || "",
+    puntajeComercialClientes: record.puntajeComercialClientes || "",
+    puntajeOperacionEquipo: record.puntajeOperacionEquipo || "",
+    puntajeDireccionPrioridades: record.puntajeDireccionPrioridades || "",
+    puntajeGeneral: record.puntajeGeneral || "",
+    resultadoGeneral: record.resultadoGeneral || "",
+    areaCritica: record.areaCritica || "",
+    areaOportunidad: record.areaOportunidad || "",
+    potencialInflux: record.potencialInflux || "",
+    calidadRespuesta: record.calidadRespuesta || "",
+    siguienteHerramienta: record.siguienteHerramienta || "",
+    dolorPrincipal: record.dolorPrincipal || "",
+    areaTiempo: record.areaTiempo || "",
+    ordenarPrimero: record.ordenarPrimero || "",
+    objetivoSeisMeses: record.objetivoSeisMeses || "",
+    servicioRecomendado: record.servicioRecomendado || "",
+    estadoContacto: record.estadoContacto || "Nuevo contacto",
+    proximaAccion: record.proximaAccion || "Pendiente de devolución",
+    fechaSeguimiento: record.fechaSeguimiento || "",
+    valorPotencial: record.valorPotencial || "",
+    observacionInterna: record.observacionInterna || "",
+    campania: record.campania || ""
+  };
+}
+
+async function syncRecordOnline(record){
+  if(!record||!GOOGLE_SHEETS_WEBAPP_URL)return;
+  if(!navigator.onLine){
+    record.syncStatus="Guardado localmente";
+    record.lastSyncAttempt=formatDateTime(new Date());
+    persistCurrentRecord();
+    return;
+  }
+  record.syncStatus="Enviando online...";
+  record.lastSyncAttempt=formatDateTime(new Date());
+  persistCurrentRecord();
+  try{
+    await fetch(GOOGLE_SHEETS_WEBAPP_URL,{
+      method:"POST",
+      mode:"no-cors",
+      headers:{"Content-Type":"text/plain;charset=utf-8"},
+      body:JSON.stringify(buildOnlinePayload(record))
+    });
+    record.syncStatus="Sincronizado online";
+    record.syncedAt=formatDateTime(new Date());
+    persistCurrentRecord();
+    showToast("Registro enviado a Google Sheets.");
+  }catch(error){
+    record.syncStatus="Pendiente online";
+    record.syncError=String(error&&error.message?error.message:error);
+    persistCurrentRecord();
+    showToast("Guardado local. No se pudo enviar online todavía.");
+  }
+}
+
+function syncPendingRecords(){
+  const records=readRecords();
+  const pending=records.filter(r=>r.syncStatus!=="Sincronizado online");
+  if(!pending.length){showToast("No hay registros pendientes de sincronizar.");return}
+  if(!navigator.onLine){showToast("Sin conexión. Los registros siguen guardados localmente.");return}
+  pending.forEach(r=>syncRecordOnline(r));
+  showToast(`${pending.length} registro(s) pendiente(s) intentando sincronizar.`);
+}
+
+window.addEventListener("online",()=>setTimeout(syncPendingRecords,800));
+
+function updateInternalFollowup(silent=false){if(!state.currentResult){showToast("Primero completá un Semáforo.");return}const fields={estadoContacto:document.getElementById("leadStatus")?.value||"Nuevo contacto",proximaAccion:document.getElementById("nextAction")?.value||"Pendiente de devolución",fechaSeguimiento:document.getElementById("followupDate")?.value||"",valorPotencial:document.getElementById("potentialValue")?.value||"",observacionInterna:document.getElementById("internalNotes")?.value||""};Object.assign(state.currentResult,fields);let records=readRecords();const idx=records.findIndex(r=>r.id===state.currentResult.id);if(idx>=0)records[idx]=state.currentResult;else records.push(state.currentResult);writeRecords(records);updateSyncBadge(state.currentResult);syncRecordOnline(state.currentResult);showToast(silent?"Diagnóstico guardado.":"Seguimiento interno actualizado.")}
+function openPanel(){const code=prompt("Ingresá la contraseña del Panel INFLUX:");if(code===null)return;if(String(code).trim().toUpperCase()!==PANEL_PASS){showToast("Clave incorrecta.");return}showScreen("panelScreen")}
+function renderPanel(){const records=readRecords(),wrap=document.getElementById("recordsTable");const high=records.filter(r=>r.potencialInflux==="Alto").length;const pending=records.filter(r=>(r.estadoContacto||"Nuevo contacto")==="Nuevo contacto"||(r.proximaAccion||"").includes("Pendiente")).length;const pendingOnline=records.filter(r=>r.syncStatus!=="Sincronizado online").length;const meetings=records.filter(r=>(r.estadoContacto||"")==="Reunión agendada"||(r.proximaAccion||"").includes("Agendar")).length;const metrics=`<div class="panel-metrics"><div class="metric-card"><span>Total registros</span><strong>${records.length}</strong></div><div class="metric-card"><span>Potencial alto</span><strong>${high}</strong></div><div class="metric-card"><span>Pendientes</span><strong>${pending}</strong></div><div class="metric-card"><span>Reuniones</span><strong>${meetings}</strong></div><div class="metric-card"><span>Pendientes online</span><strong>${pendingOnline}</strong></div></div>`;if(!records.length){wrap.innerHTML=`${metrics}<div class="empty">Todavía no hay registros guardados en este dispositivo.</div>`;return}wrap.innerHTML=`${metrics}<table><thead><tr><th>Fecha</th><th>Negocio</th><th>Responsable</th><th>WhatsApp</th><th>Rubro</th><th>Ciudad</th><th>Rol</th><th>Dónde conoció INFLUX</th><th>Resultado</th><th>Principal señal</th><th>Potencial</th><th>Calidad</th><th>Herramienta</th><th>Online</th><th>Estado</th><th>Próxima acción</th><th>Seguimiento</th><th>Servicio</th><th>Valor potencial</th><th>Observaciones</th></tr></thead><tbody>${records.map(r=>`<tr><td>${escapeHtml(r.fechaHora||"")}</td><td>${escapeHtml(r.nombreNegocio||"")}</td><td>${escapeHtml(r.responsable||"")}</td><td>${escapeHtml(r.whatsapp||"")}</td><td>${escapeHtml(r.rubro||"")}</td><td>${escapeHtml(r.ciudad||"")}</td><td>${escapeHtml(r.rolNegocio||"")}</td><td>${escapeHtml(r.origenContacto||"")}</td><td>${escapeHtml(r.resultadoGeneral||"")} · ${escapeHtml(String(r.puntajeGeneral||""))}%</td><td>${escapeHtml(r.areaCritica||"")}</td><td>${escapeHtml(r.potencialInflux||"")}</td><td>${escapeHtml(r.calidadRespuesta||"")}</td><td>${escapeHtml(r.siguienteHerramienta||"")}</td><td>${escapeHtml(r.syncStatus||"Pendiente online")}</td><td>${escapeHtml(r.estadoContacto||"Nuevo contacto")}</td><td>${escapeHtml(r.proximaAccion||"Pendiente de devolución")}</td><td>${escapeHtml(r.fechaSeguimiento||"")}</td><td>${escapeHtml(r.servicioRecomendado||"")}</td><td>${escapeHtml(r.valorPotencial||"")}</td><td>${escapeHtml(r.observacionInterna||"")}</td></tr>`).join("")}</tbody></table>`}
+function exportCSV(){const records=readRecords();if(!records.length){showToast("No hay registros para exportar.");return}const headers=["Fecha y hora","Tipo de Semáforo","Nombre del negocio","Responsable","WhatsApp","Email","Instagram o web","Rubro","Ciudad","Empleados","Sucursales","Facturación mensual aproximada","Dónde conoció INFLUX","Campaña","Puntaje Finanzas y caja","Puntaje Rentabilidad","Puntaje Comercial y clientes","Puntaje Operación y equipo","Puntaje Dirección y prioridades","Puntaje general","Resultado general","Principal señal detectada","Área con mayor oportunidad","Potencial INFLUX","Calidad de respuesta","Siguiente herramienta sugerida","Estado online","Dolor principal","Área que consume más tiempo","Qué quiere ordenar primero","Objetivo a 6 meses","Servicio recomendado","Estado del contacto","Próxima acción","Fecha seguimiento","Valor potencial","Observaciones internas"];const rows=records.map(r=>[r.fechaHora,r.tipoSemaforo||"Presencial",r.nombreNegocio,r.responsable,r.whatsapp,r.email,r.instagram,r.rubro,r.ciudad,r.empleados,r.sucursales,r.facturacion,r.origenContacto,r.campania,r.puntajeFinanzasCaja,r.puntajeRentabilidad,r.puntajeComercialClientes,r.puntajeOperacionEquipo,r.puntajeDireccionPrioridades,`${r.puntajeGeneral}%`,r.resultadoGeneral,r.areaCritica,r.areaOportunidad,r.potencialInflux,r.calidadRespuesta,r.siguienteHerramienta,r.syncStatus,r.dolorPrincipal,r.areaTiempo,r.ordenarPrimero,r.objetivoSeisMeses,r.servicioRecomendado,r.estadoContacto,r.proximaAccion,r.fechaSeguimiento,r.valorPotencial,r.observacionInterna]);const csv="\uFEFF"+[headers,...rows].map(row=>row.map(csvCell).join(";")).join("\r\n");const blob=new Blob([csv],{type:"text/csv;charset=utf-8;"}),url=URL.createObjectURL(blob),a=document.createElement("a"),date=new Date().toISOString().slice(0,10);a.href=url;a.download=`Base_Semaforo_INFLUX_Express_Guiado_15_${date}.csv`;document.body.appendChild(a);a.click();document.body.removeChild(a);URL.revokeObjectURL(url);showToast("Base exportada en CSV compatible con Excel.")}
+function clearLocalDatabase(){if(!readRecords().length){showToast("No hay registros para borrar.");return}if(!confirm("Esta acción borra todos los registros locales guardados en este navegador. ¿Querés continuar?"))return;localStorage.removeItem(STORAGE_KEY);renderPanel();showToast("Base local borrada.")}
+function commercialSummaryText(r){return `Según el Semáforo INFLUX, ${r.nombreNegocio||"el negocio"} obtuvo ${r.puntajeGeneral}% con estado ${r.resultadoGeneral}. La principal señal detectada es ${r.areaCritica}. El servicio recomendado es ${r.servicioRecomendado}. El próximo paso sugerido es ${r.siguienteHerramienta}. Potencial INFLUX: ${r.potencialInflux}. Calidad de respuesta: ${r.calidadRespuesta}.`}
+async function copyCommercialSummary(){if(!state.currentResult){showToast("Primero completá un Semáforo.");return}try{const text=commercialSummaryText(state.currentResult);if(navigator.clipboard&&navigator.clipboard.writeText)await navigator.clipboard.writeText(text);else{const ta=document.createElement("textarea");ta.value=text;document.body.appendChild(ta);ta.select();document.execCommand("copy");document.body.removeChild(ta)}showToast("Resumen comercial copiado.");}catch(e){showToast("No se pudo copiar el resumen.")}}
+function preparePrintReport(){if(!state.currentResult){showToast("Primero completá un Semáforo.");return}renderPrintReport(state.currentResult);setTimeout(()=>window.print(),120)}
+function renderPrintReport(r){
+  document.getElementById("printHeader").textContent=`${r.nombreNegocio||"Negocio"} · ${r.rubro||"Rubro"} · ${r.ciudad||"Ciudad"} · ${r.rolNegocio||"Rol no informado"} · ${r.fechaHora||""}`;
+  document.getElementById("printKpis").innerHTML=[
+    ["Resultado general",`${r.puntajeGeneral}% · ${r.resultadoGeneral}`],
+    ["Principal señal",r.areaCritica],
+    ["Próximo paso INFLUX",r.siguienteHerramienta],
+    ["Servicio recomendado",r.servicioRecomendado]
+  ].map(k=>`<div class="print-kpi"><span>${k[0]}</span><strong>${escapeHtml(k[1])}</strong></div>`).join("");
+
+  const key=getStatus(r.puntajeGeneral).key;
+  document.getElementById("printTraffic").innerHTML=`<div class="print-traffic">
+    <div class="print-light-stack">
+      <span class="print-light red ${key==="red"?"on":""}"></span>
+      <span class="print-light yellow ${key==="yellow"?"on":""}"></span>
+      <span class="print-light green ${key==="green"?"on":""}"></span>
+    </div>
+    <div><div class="print-big-score">${r.puntajeGeneral}%</div><div class="print-subtitle" style="margin:4px 0 0">${r.resultadoGeneral} · primera lectura</div></div>
+  </div>`;
+  document.getElementById("printScoreVisual").innerHTML=`<div class="print-seal"><strong>Lectura rápida:</strong><br>Este resultado marca el estado general del recorrido y ayuda a definir por dónde conviene profundizar primero.</div>`;
+
+  document.getElementById("printBars").innerHTML=r.areas.map(a=>`<div class="print-bar-row">
+    <div class="print-bar-top"><strong>${escapeHtml(a.name)}</strong><span>${a.percent}% · ${a.status.label}</span></div>
+    <div class="print-bar-track"><div class="print-bar-fill" style="width:${a.percent}%"></div></div>
+  </div>`).join("");
+
+  document.getElementById("printReading").textContent=r.lecturaInflux;
+  document.getElementById("printCritical").textContent=`${r.areaCritica}. Es una señal inicial a revisar, no una conclusión definitiva.`;
+  document.getElementById("printOpportunity").textContent=`${r.areaOportunidad}. Es el área que muestra mejor base para construir mejoras.`;
+  document.getElementById("printNext").textContent=r.roadmapPlan;
+}
+function csvCell(v){return `"${String(v??"").replace(/"/g,'""')}"`}
+function formatDateTime(d){return new Intl.DateTimeFormat("es-AR",{year:"numeric",month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit"}).format(d)}
+function cryptoRandomId(){return window.crypto&&crypto.randomUUID?crypto.randomUUID():`id_${Date.now()}_${Math.random().toString(16).slice(2)}`}
+function escapeHtml(v){return String(v??"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&#039;")}
+function escapeAttr(v){return escapeHtml(v).replace(/`/g,"&#096;")}
+</script>
+</body>
+</html>
